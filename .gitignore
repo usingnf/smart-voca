@@ -1,0 +1,23 @@
+# API 키와 사용자 데이터 (공개 저장소에 올리지 않음)
+data/settings.json
+dist/settings.json
+settings.json
+users/
+reports/
+
+# 빌드 산출물
+dist/
+build/
+
+# 파이썬 캐시와 임시 파일
+__pycache__/
+*.pyc
+*.tmp
+*.csv.tmp
+*.json.tmp
+
+# 환경 변수 파일
+.env
+
+# 원본 수집 데이터 (용량이 커서 제외)
+data/raw/
