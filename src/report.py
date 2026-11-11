@@ -7,14 +7,13 @@ import html
 from datetime import datetime, timedelta
 
 from config import (
-    RECORD_ASSIGNMENT_TEST,
     RECORD_MEMORIZE,
-    RECORD_TEST,
     REPORTS_DIR,
     RESULT_CORRECT,
     RESULT_WRONG,
     STATUS_COMPLETED,
     STATUS_MISSED,
+    TEST_RECORD_KINDS,
     TOP_WRONG_WORDS,
 )
 from timeutil import kst_today
@@ -24,7 +23,6 @@ PERIOD_LAST_7 = "최근 7일"
 PERIOD_LAST_30 = "최근 30일"
 PERIOD_CUSTOM = "기간 선택"
 PERIOD_OPTIONS = [PERIOD_ALL, PERIOD_LAST_7, PERIOD_LAST_30, PERIOD_CUSTOM]
-TEST_RECORD_KINDS = {RECORD_TEST, RECORD_ASSIGNMENT_TEST}
 
 
 def period_range(period, today, custom_start=None, custom_end=None):

@@ -8,7 +8,7 @@ import shutil
 
 from config import (
     RECORD_MEMORIZE,
-    RECORD_TEST,
+    TEST_RECORD_KINDS,
     RESULT_CORRECT,
     RESULT_OPENED,
     RESULT_WRONG,
@@ -19,9 +19,6 @@ from daily import complete_assignment, create_today_assignment, find_assignment
 from quiz import score_of
 from timeutil import kst_now, kst_today
 from user_store import UserStore, make_custom_entry
-
-TEST_RECORD_KINDS = {RECORD_TEST, "과제시험"}
-
 
 class UserSession:
     """한 사용자의 모든 상태를 다룬다. 화면은 이 객체만 호출한다."""

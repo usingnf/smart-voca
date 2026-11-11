@@ -10,6 +10,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from config import APP_ICON_PATH, APP_TITLE, APP_USER_MODEL_ID, VOCA_PATH
+from crash_log import install_crash_handler
 from session import UserSession
 from settings import load_settings
 from ui.login_dialog import LoginDialog
@@ -62,6 +63,7 @@ def set_windows_app_id():
 
 
 def main():
+    install_crash_handler()
     set_windows_app_id()
     app = QApplication(sys.argv)
     # 기본 아이콘을 지정하면 모든 창(로그인 창, 메인 창, 대화상자)의 제목 표시줄과 작업표시줄에 적용된다.

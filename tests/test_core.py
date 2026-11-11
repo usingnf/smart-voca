@@ -13,7 +13,7 @@ from pathlib import Path
 SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(SRC_DIR))
 
-from config import STATUS_COMPLETED, STATUS_MISSED, STATUS_PENDING  # noqa: E402
+from config import RECORD_ASSIGNMENT_TEST, STATUS_COMPLETED, STATUS_MISSED, STATUS_PENDING  # noqa: E402
 from daily import complete_assignment, create_today_assignment  # noqa: E402
 from quiz import (  # noqa: E402
     DIRECTION_EN_TO_KO,
@@ -153,7 +153,7 @@ class ReportTests(unittest.TestCase):
         rows = [
             {"구분": "시험", "단어": "a", "결과": "오답"},
             {"구분": "시험", "단어": "a", "결과": "정답"},
-            {"구분": "과제시험", "단어": "b", "결과": "오답"},
+            {"구분": RECORD_ASSIGNMENT_TEST, "단어": "b", "결과": "오답"},
             {"구분": "시험", "단어": "c", "결과": "정답"},
             {"구분": "암기", "단어": "d", "결과": "열람"},
         ]

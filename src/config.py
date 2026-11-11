@@ -3,6 +3,7 @@
 # 2026-10-21 - 클로드 스마트 보카 - 경로와 고정 설정값 (exe 실행 시 exe 옆 폴더 기준)
 # 파일 위치: src/config.py
 
+import os
 import sys
 from pathlib import Path
 
@@ -49,6 +50,9 @@ RESULT_OPENED = "열람"
 RESULT_CORRECT = "정답"
 RESULT_WRONG = "오답"
 
+# 시험으로 치는 기록 구분 (보고서·정답률 집계에 쓴다)
+TEST_RECORD_KINDS = frozenset({RECORD_TEST, RECORD_ASSIGNMENT_TEST})
+
 
 def resolve_base_dir():
     """exe 실행이면 exe 옆 폴더, 개발 실행이면 프로젝트의 data 폴더를 쓴다."""
@@ -76,3 +80,6 @@ APP_ICON_PATH = resource_path("assets/SmartVoca.ico")
 APP_USER_MODEL_ID = "SmartVoca.Desktop"
 USERS_DIR = BASE_DIR / "users"
 REPORTS_DIR = BASE_DIR / "reports"
+
+# 처리되지 않은 오류 기록. exe 옆에 파일을 늘리지 않으려고 사용자 로컬 앱 데이터 폴더에 둔다.
+ERROR_LOG_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "SmartVoca" / "error.log"
