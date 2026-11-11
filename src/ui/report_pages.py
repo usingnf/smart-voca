@@ -4,6 +4,7 @@
 # 파일 위치: src/ui/report_pages.py
 
 import webbrowser
+from datetime import timedelta
 from pathlib import Path
 
 from PyQt6.QtCore import QDate, pyqtSignal
@@ -36,6 +37,7 @@ from ui.study_pages import make_table, page_title
 
 EMPTY_REPORT_TEXT = "아직 기록이 없습니다. 시험을 보면 이 화면에 결과가 표시됩니다."
 CHART_DAYS = 14
+CHART_MAX_DAYS = 60
 
 
 class ReportPage(QWidget):
@@ -116,8 +118,9 @@ class ReportPage(QWidget):
             f"암기한 단어 수: {summary['memorized']}개   "
             f"시험 정답률: {format_percent(test_rate)}"
         )
-        series = daily_accuracy(rows, kst_today(), CHART_DAYS)
-        self.chart.set_items(series)
+        chart_end, days = self.chart_span(start, end)
+        self.chart.set_items(daily_accuracy(rows, chart_end, days))
+        self.chart_title.setText(self.chart_title_text(start, chart_end, days))
 
         self.top_table.setRowCount(len(summary["top_wrong"]))
         for row_index, (word, asked, wrong, rate) in enumerate(summary["top_wrong"]):
@@ -128,6 +131,18 @@ class ReportPage(QWidget):
         has_records = bool(rows)
         self.empty_label.setVisible(not has_records)
         self.message_label.setText("")
+
+    def chart_span(self, start, end):
+        """그래프가 보여 줄 마지막 날짜와 일수. 전체 기간이면 최근 CHART_DAYS일, 기간을 고르면 그 기간을 쓴다."""
+        if start is None:
+            return kst_today(), CHART_DAYS
+        return end, min((end - start).days + 1, CHART_MAX_DAYS)
+
+    def chart_title_text(self, start, chart_end, days):
+        if start is None:
+            return f"최근 {CHART_DAYS}일 날짜별 시험 정답률"
+        first_day = chart_end - timedelta(days=days - 1)
+        return f"{first_day:%m-%d} ~ {chart_end:%m-%d} 날짜별 시험 정답률"
 
     def export_report(self):
         period, (start, end) = self.selected_range()

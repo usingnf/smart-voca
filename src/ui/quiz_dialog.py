@@ -3,7 +3,7 @@
 # 2026-10-21 - 클로드 스마트 보카 - 시험 진행 창과 결과 창 (진행률, 키보드 조작, 정답·오답 표시, 오답만 보기)
 # 파일 위치: src/ui/quiz_dialog.py
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QElapsedTimer, Qt
 from PyQt6.QtGui import QBrush, QKeyEvent
 from PyQt6.QtWidgets import (
     QApplication,
@@ -27,6 +27,9 @@ from ui.theme import mark_font_level, result_colors
 
 MARK_CORRECT = "✓ 정답"
 MARK_WRONG = "✗ 오답"
+DEFAULT_ABORT_MESSAGE = "시험을 끝까지 치르지 않고 나가면 결과가 기록되지 않습니다. 종료할까요?"
+# 답 제출 후 이 시간(ms) 안의 입력은 무시한다. 사람이 연속으로 답하기 어려운 짧은 간격이다.
+ANSWER_COOLDOWN_MS = 250
 OX_KEYS = {Qt.Key.Key_O: OX_TRUE, Qt.Key.Key_X: OX_FALSE}
 NUMBER_KEYS = [Qt.Key.Key_1, Qt.Key.Key_2, Qt.Key.Key_3, Qt.Key.Key_4]
 
@@ -37,19 +40,25 @@ class QuizDialog(QDialog):
     키보드: 4지선다는 1~4, OX는 O/X, 단답은 Enter로 제출한다.
     중도 종료하면 aborted가 True가 된다. 결과는 기록하지 않는다.
     pass_rate가 주어지면 결과 화면에 통과 여부를 표시한다 (과제 시험용).
+    abort_message가 주어지면 중도 종료 확인 창에 그 문구를 쓴다 (과제 시험은 미이수 안내 포함).
     """
 
-    def __init__(self, questions, title, pass_rate=None, parent=None):
+    def __init__(self, questions, title, pass_rate=None, parent=None, abort_message=None, allow_retest=False):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.resize(780, 520)
         self.questions = questions
         self.pass_rate = pass_rate
+        self.abort_message = abort_message or DEFAULT_ABORT_MESSAGE
+        self.allow_retest = allow_retest
         self.answers = []
         self.results = []
         self.finished = False
         self.aborted = False
+        self.retest_requested = False
         self.current_choices = []
+        # 답을 낸 직후 잠깐은 입력을 무시한다. 더블클릭이 다음 문항의 보기를 한 번 더 누르는 것을 막는다.
+        self._answer_clock = QElapsedTimer()
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, len(questions))
@@ -79,6 +88,10 @@ class QuizDialog(QDialog):
         self.result_table.setHorizontalHeaderLabels(["단어", "방향", "유형", "내 답", "정답", "결과"])
         self.result_table.setAlternatingRowColors(True)
         self.result_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.retest_button = QPushButton("오답만 다시 풀기")
+        self.retest_button.setToolTip("이번 시험에서 틀린 단어로 바로 다시 시험을 봅니다.")
+        self.retest_button.clicked.connect(self.request_retest)
+        self.retest_button.setVisible(False)
         close_button = QPushButton("닫기")
         close_button.clicked.connect(self.accept)
         result_page = QWidget()
@@ -86,6 +99,7 @@ class QuizDialog(QDialog):
         result_layout.addWidget(self.summary_label)
         result_layout.addWidget(self.wrong_only_check)
         result_layout.addWidget(self.result_table)
+        result_layout.addWidget(self.retest_button)
         result_layout.addWidget(close_button)
 
         self.pages = QStackedWidget()
@@ -145,11 +159,17 @@ class QuizDialog(QDialog):
         super().keyPressEvent(event)
 
     def submit(self, answer):
+        if self.finished or self._in_cooldown():
+            return
+        self._answer_clock.start()
         self.answers.append(answer)
         if len(self.answers) < len(self.questions):
             self.show_question()
             return
         self.finish_quiz()
+
+    def _in_cooldown(self):
+        return self._answer_clock.isValid() and self._answer_clock.elapsed() < ANSWER_COOLDOWN_MS
 
     def finish_quiz(self):
         self.finished = True
@@ -167,7 +187,22 @@ class QuizDialog(QDialog):
         passed = self.pass_rate is None or score >= self.pass_rate
         summary_color = correct_color if passed else wrong_color
         self.summary_label.setStyleSheet(f"color: {summary_color.name()}; font-weight: bold;")
+        has_wrong = any(not result.is_correct for result in self.results)
+        self.retest_button.setVisible(self.allow_retest and has_wrong)
         self.pages.setCurrentIndex(1)
+
+    def request_retest(self):
+        """결과 화면에서 오답 재시험을 누르면 창을 닫고, 호출한 쪽이 틀린 단어로 다시 시험을 연다."""
+        self.retest_requested = True
+        self.accept()
+
+    def wrong_words(self):
+        """이번 시험에서 틀린 단어를 중복 없이 출제 순서대로 돌려준다."""
+        seen = []
+        for result in self.results:
+            if not result.is_correct and result.word not in seen:
+                seen.append(result.word)
+        return seen
 
     def reject(self):
         """ESC나 창 닫기. 결과 화면이면 바로 닫고, 푸는 중이면 중도 종료를 확인한다."""
@@ -176,7 +211,7 @@ class QuizDialog(QDialog):
             return
         answer = QMessageBox.question(
             self, "중도 종료",
-            "시험을 끝까지 치르지 않고 나가면 결과가 기록되지 않습니다. 종료할까요?",
+            self.abort_message,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if answer == QMessageBox.StandardButton.Yes:

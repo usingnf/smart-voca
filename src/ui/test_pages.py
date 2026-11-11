@@ -3,7 +3,7 @@
 # 2026-10-21 - 클로드 스마트 보카 - 시험 설정(오답 재시험·즐겨찾기 포함) 화면과 오늘의 과제 화면
 # 파일 위치: src/ui/test_pages.py
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -52,6 +52,15 @@ STATUS_LABELS = {
     STATUS_MISSED: "✗ 미이수",
 }
 MAX_RETEST_WORDS = EXAM_QUESTION_MAX
+ASSIGNMENT_HINTS = {
+    STATUS_PENDING: f"과제 시험을 끝까지 치러 정답률 {PASS_RATE * 100:.0f}% 이상이면 오늘 과제가 완수됩니다.",
+    STATUS_COMPLETED: "오늘 과제를 완수했습니다. 다음 날 새 과제가 주어집니다.",
+    STATUS_MISSED: "미이수 과제입니다. 이 단어들은 다음 날 복습 단어로 이어집니다.",
+}
+ASSIGNMENT_ABORT_MESSAGE = (
+    "과제 시험을 끝까지 치르지 않고 나가면 오늘 과제가 미이수로 기록됩니다.\n"
+    "이 과제의 단어는 다음 날 복습 단어로 이어집니다. 종료할까요?"
+)
 MAX_CHIP_WIDTH = 4
 
 
@@ -69,7 +78,10 @@ class TestPage(QWidget):
     """시험 설정 화면. 문제 수, 방향, 유형, 품사를 고른 뒤 시작한다.
 
     오답 재시험과 즐겨찾기만 출제도 여기서 한다.
+    고른 조건(유형·품사·즐겨찾기)은 preferences_changed로 알려서 settings.json에 저장되게 한다.
     """
+
+    preferences_changed = pyqtSignal(object)
 
     def __init__(self, session):
         super().__init__()
@@ -79,26 +91,38 @@ class TestPage(QWidget):
         self.count_spin.setRange(EXAM_QUESTION_MIN, EXAM_QUESTION_MAX)
         self.count_spin.setSingleStep(EXAM_QUESTION_STEP)
         self.count_spin.setValue(EXAM_QUESTION_DEFAULT)
+        self.count_spin.setToolTip(f"{EXAM_QUESTION_MIN}~{EXAM_QUESTION_MAX}문항, {EXAM_QUESTION_STEP}문항 단위로 고릅니다.")
         self.direction_combo = QComboBox()
         self.direction_combo.addItems(DIRECTION_CHOICES)
+        self.direction_combo.setToolTip("복합: 문제마다 한글→영어와 영어→한글을 50:50으로 섞습니다.")
         self.type_checks = []
         for kind, label in TYPE_CHOICES:
             check = QCheckBox(label)
             check.setChecked(True)
             check.setProperty("kind", kind)
+            check.setToolTip("선택한 유형을 균등하게 나눠 출제합니다.")
             self.type_checks.append(check)
         self.pos_checks = []
         for pos_key in POS_DEFAULT_ORDER:
             check = QCheckBox(POS_LABELS[pos_key])
             check.setChecked(True)
             check.setProperty("posKey", pos_key)
+            check.setToolTip("체크한 품사의 단어만 정답으로 출제합니다.")
             self.pos_checks.append(check)
         self.favorites_check = QCheckBox("즐겨찾기 단어만 출제")
+        self.favorites_check.setToolTip("★로 표시한 단어만 정답으로 출제합니다.")
         start_button = QPushButton("시험 시작")
         start_button.clicked.connect(self.start_test)
         retest_button = QPushButton("오답 재시험")
+        retest_button.setToolTip("최근 시험에서 틀린 단어만 다시 풉니다.")
         retest_button.clicked.connect(self.start_wrong_retest)
         self.retest_hint = QLabel()
+
+        for check in self.type_checks:
+            check.toggled.connect(lambda checked, c=check: self._on_group_toggled(c, checked, self.type_checks))
+        for check in self.pos_checks:
+            check.toggled.connect(lambda checked, c=check: self._on_group_toggled(c, checked, self.pos_checks))
+        self.favorites_check.toggled.connect(self.emit_preferences)
 
         settings = QHBoxLayout()
         settings.addWidget(QLabel("문제 수"))
@@ -132,6 +156,34 @@ class TestPage(QWidget):
     def apply_settings(self, settings):
         self.count_spin.setValue(settings.exam_count)
         self.direction_combo.setCurrentText(settings.exam_direction)
+        # 저장된 조건을 칸에 채운다. 채우는 동안 저장 신호가 나가지 않게 막는다.
+        widgets = self.type_checks + self.pos_checks + [self.favorites_check]
+        for widget in widgets:
+            widget.blockSignals(True)
+        for check in self.type_checks:
+            check.setChecked(check.property("kind") in settings.exam_kinds)
+        for check in self.pos_checks:
+            check.setChecked(check.property("posKey") in settings.exam_pos_keys)
+        self.favorites_check.setChecked(settings.exam_favorites_only)
+        for widget in widgets:
+            widget.blockSignals(False)
+
+    def _on_group_toggled(self, check, checked, group):
+        """유형·품사는 최소 하나가 켜져 있어야 한다. 마지막 것을 끄려 하면 되돌린다."""
+        if not checked and not any(item.isChecked() for item in group):
+            check.blockSignals(True)
+            check.setChecked(True)
+            check.blockSignals(False)
+            return
+        self.emit_preferences()
+
+    def emit_preferences(self, *_args):
+        """고른 시험 조건을 메인 창에 알린다. 메인 창이 settings.json에 저장한다."""
+        self.preferences_changed.emit({
+            "exam_kinds": self.selected_kinds(),
+            "exam_pos_keys": self.selected_pos_keys(),
+            "exam_favorites_only": self.favorites_check.isChecked(),
+        })
 
     def refresh_hint(self):
         wrong_count = len(self.session.wrong_words())
@@ -152,11 +204,16 @@ class TestPage(QWidget):
         pool = self.session.pool
         questions = build_questions(targets, pool, self.direction_combo.currentText(),
                                     kinds, self.session.rng)
-        dialog = QuizDialog(questions, title, parent=self)
+        dialog = QuizDialog(questions, title, parent=self, allow_retest=True)
         dialog.exec()
         if dialog.finished:
             self.session.record_results(dialog.results, RECORD_TEST)
         self.refresh_hint()
+        if dialog.retest_requested:
+            # 결과 화면의 [오답만 다시 풀기]: 방금 틀린 단어로 같은 조건의 시험을 다시 연다.
+            wrong_targets = [self.session.pool[word] for word in dialog.wrong_words() if word in self.session.pool]
+            if wrong_targets:
+                self._run_quiz(wrong_targets, "오답 재시험")
 
     def start_test(self):
         if not self.selected_kinds():
@@ -214,10 +271,14 @@ class AssignmentPage(QWidget):
             f"완수 기준: 과제 시험 정답률 {PASS_RATE * 100:.0f}% 이상 "
             f"({DAILY_ASSIGNMENT_SIZE}문항 중 {int(DAILY_ASSIGNMENT_SIZE * PASS_RATE)}개 이상 정답)"
         )
+        self.rule_label.setWordWrap(True)
+        self.hint_label = QLabel()
+        self.hint_label.setWordWrap(True)
 
         layout = QVBoxLayout(self)
         layout.addWidget(page_title("오늘의 과제"))
         layout.addWidget(self.status_label)
+        layout.addWidget(self.hint_label)
         layout.addLayout(self.chip_row)
         layout.addWidget(self.rule_label)
         layout.addWidget(self.word_table)
@@ -247,7 +308,11 @@ class AssignmentPage(QWidget):
             self.word_table.setItem(row_index, 0, QTableWidgetItem(word))
             self.word_table.setItem(row_index, 1, QTableWidgetItem(meaning))
             self.word_table.setItem(row_index, 2, QTableWidgetItem(kind))
-        self.start_button.setEnabled(assignment["status"] == STATUS_PENDING)
+        pending = assignment["status"] == STATUS_PENDING
+        self.start_button.setEnabled(pending)
+        hint = ASSIGNMENT_HINTS.get(assignment["status"], "")
+        self.hint_label.setText(hint)
+        self.start_button.setToolTip("" if pending else hint)
 
     def _clear_chips(self):
         while self.chip_row.count():
@@ -262,7 +327,10 @@ class AssignmentPage(QWidget):
         kinds = [KIND_SHORT, KIND_CHOICE, KIND_OX]
         questions = build_questions(targets, pool, DIRECTION_MIXED, kinds, self.session.rng)
 
-        dialog = QuizDialog(questions, "과제 시험", pass_rate=PASS_RATE, parent=self)
+        dialog = QuizDialog(
+            questions, "과제 시험", pass_rate=PASS_RATE, parent=self,
+            abort_message=ASSIGNMENT_ABORT_MESSAGE,
+        )
         dialog.exec()
         if dialog.aborted:
             self.session.abandon_assignment(assignment)

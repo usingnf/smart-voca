@@ -4,10 +4,17 @@
 # 파일 위치: src/settings.py
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field, replace
 
-from config import BASE_DIR, EXAM_QUESTION_DEFAULT, EXAM_QUESTION_MAX, EXAM_QUESTION_MIN, EXAM_QUESTION_STEP
-from quiz import DIRECTION_EN_TO_KO, DIRECTION_KO_TO_EN, DIRECTION_MIXED
+from config import (
+    BASE_DIR,
+    EXAM_QUESTION_DEFAULT,
+    EXAM_QUESTION_MAX,
+    EXAM_QUESTION_MIN,
+    EXAM_QUESTION_STEP,
+    POS_DEFAULT_ORDER,
+)
+from quiz import DIRECTION_EN_TO_KO, DIRECTION_KO_TO_EN, DIRECTION_MIXED, KIND_CHOICE, KIND_OX, KIND_SHORT
 
 SETTINGS_PATH = BASE_DIR / "settings.json"
 
@@ -20,6 +27,13 @@ FONT_SIZE_MAX = 16
 FONT_SIZE_DEFAULT = 10
 
 DIRECTION_CHOICES = [DIRECTION_EN_TO_KO, DIRECTION_KO_TO_EN, DIRECTION_MIXED]
+EXAM_KIND_CHOICES = [KIND_SHORT, KIND_CHOICE, KIND_OX]
+
+
+def _known_subset(values, known, default):
+    """known 안에 있는 값만 원래 순서대로 남긴다. 남는 것이 없으면 기본값을 쓴다."""
+    kept = [value for value in values if value in known]
+    return kept or list(default)
 
 
 @dataclass
@@ -35,6 +49,10 @@ class AppSettings:
     window_height: int = 600
     krdict_api_key: str = ""
     online_lookup_enabled: bool = True
+    # 시험 화면에서 마지막으로 고른 조건 (다음 실행 때도 유지)
+    exam_kinds: list = field(default_factory=lambda: list(EXAM_KIND_CHOICES))
+    exam_pos_keys: list = field(default_factory=lambda: list(POS_DEFAULT_ORDER))
+    exam_favorites_only: bool = False
 
     def sanitized(self):
         """범위를 벗어난 값을 기본값으로 되돌린다."""
@@ -51,8 +69,16 @@ class AppSettings:
         window_height = min(max(int(self.window_height), 540), 1600)
         krdict_api_key = str(self.krdict_api_key or "").strip()
         online_lookup_enabled = bool(self.online_lookup_enabled)
-        return AppSettings(theme, font_size, exam_count, exam_direction, memorize_direction,
-                           window_width, window_height, krdict_api_key, online_lookup_enabled)
+        exam_kinds = _known_subset(self.exam_kinds, EXAM_KIND_CHOICES, EXAM_KIND_CHOICES)
+        exam_pos_keys = _known_subset(self.exam_pos_keys, POS_DEFAULT_ORDER, POS_DEFAULT_ORDER)
+        exam_favorites_only = bool(self.exam_favorites_only)
+        return replace(
+            self, theme=theme, font_size=font_size, exam_count=exam_count,
+            exam_direction=exam_direction, memorize_direction=memorize_direction,
+            window_width=window_width, window_height=window_height, krdict_api_key=krdict_api_key,
+            online_lookup_enabled=online_lookup_enabled, exam_kinds=exam_kinds,
+            exam_pos_keys=exam_pos_keys, exam_favorites_only=exam_favorites_only,
+        )
 
 
 def load_settings(path=SETTINGS_PATH):

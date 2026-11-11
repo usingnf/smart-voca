@@ -6,7 +6,8 @@
 import html
 import re
 
-from PyQt6.QtCore import QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -67,12 +68,15 @@ class MemorizePage(QWidget):
         super().__init__()
         self.session = session
         self.current = None
+        self._answer_shown = False
 
         self.direction_combo = QComboBox()
         self.direction_combo.addItems([DIRECTION_EN_TO_KO, DIRECTION_KO_TO_EN])
         self.direction_combo.currentIndexChanged.connect(self.refresh_question)
+        self.direction_combo.setToolTip("영어→한글: 영단어를 보고 뜻을 엽니다. 한글→영어: 뜻을 보고 단어를 엽니다.")
         self.favorites_only = QCheckBox("즐겨찾기 단어만")
         self.favorites_only.toggled.connect(self.next_word)
+        self.favorites_only.setToolTip("★로 표시한 단어만 보여 줍니다. 즐겨찾기가 없으면 전체 단어를 보여 줍니다.")
         self.question_label = QLabel()
         mark_font_level(self.question_label, "large")
         self.answer_label = QLabel()
@@ -80,14 +84,29 @@ class MemorizePage(QWidget):
         self.example_label = QLabel()
         self.example_label.setWordWrap(True)
         self.example_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.notice_label = QLabel()
+        self.notice_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.favorite_button = QPushButton("★ 즐겨찾기")
         self.favorite_button.clicked.connect(self.toggle_favorite)
+        self.favorite_button.setToolTip("이 단어를 즐겨찾기에 넣거나 뺍니다.")
         speak_button = QPushButton("발음 듣기")
         speak_button.clicked.connect(self.speak_current)
+        speak_button.setToolTip("영어 단어를 소리 내어 읽어 줍니다.")
         open_button = QPushButton("열기")
         open_button.clicked.connect(self.open_answer)
+        open_button.setToolTip("단축키: Space 또는 Enter. 열린 뒤에는 다음 단어로 넘어갑니다.")
         next_button = QPushButton("다음 단어")
         next_button.clicked.connect(self.next_word)
+        next_button.setToolTip("단축키: →")
+
+        # 단축키는 이 화면에 있을 때만 동작한다. Space·Enter는 열기, 열고 난 뒤에는 다음 단어.
+        for key in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(self.open_or_next)
+        arrow_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Right), self)
+        arrow_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        arrow_shortcut.activated.connect(self.next_word)
 
         top_row = QHBoxLayout()
         top_row.addWidget(self.direction_combo)
@@ -101,6 +120,7 @@ class MemorizePage(QWidget):
         layout.addWidget(self.question_label, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.answer_label, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.example_label)
+        layout.addWidget(self.notice_label)
         layout.addStretch()
         buttons = QHBoxLayout()
         buttons.addWidget(open_button)
@@ -115,17 +135,29 @@ class MemorizePage(QWidget):
         self.direction_combo.setCurrentText(settings.memorize_direction)
 
     def _candidates(self):
+        """출제 후보와 안내 문구를 함께 돌려준다. 즐겨찾기가 없으면 전체 단어로 바꾸고 그 사실을 알린다."""
         if self.favorites_only.isChecked():
             favorite_pool = self.session.favorite_pool()
             if favorite_pool:
-                return list(favorite_pool.values())
-        return list(self.session.pool.values())
+                return list(favorite_pool.values()), ""
+            return list(self.session.pool.values()), "즐겨찾기 단어가 없어 전체 단어에서 보여 줍니다."
+        return list(self.session.pool.values()), ""
 
     def next_word(self):
-        self.current = self.session.rng.choice(self._candidates())
+        candidates, notice = self._candidates()
+        self.notice_label.setText(notice)
+        self.current = self.session.rng.choice(candidates)
         self.refresh_question()
 
+    def open_or_next(self):
+        """Space·Enter: 아직 안 열었으면 열고, 이미 열었으면 다음 단어로 간다."""
+        if self._answer_shown:
+            self.next_word()
+        else:
+            self.open_answer()
+
     def refresh_question(self):
+        self._answer_shown = False
         self.answer_label.setText("")
         self.example_label.setText("")
         if self.current is None:
@@ -159,6 +191,7 @@ class MemorizePage(QWidget):
             answer = self.current.word
         self.answer_label.setText(answer)
         self.example_label.setText(self.current.example or "예문 없음")
+        self._answer_shown = True
         self.session.record_memorize(self.current.word)
 
 
@@ -178,15 +211,21 @@ class AddWordPage(QWidget):
         self.meaning_input.setPlaceholderText("한글 뜻 (쉼표로 여러 개 입력 가능)")
         self.message_label = QLabel()
         self.mode_label = QLabel()
+        self.duplicate_hint = QLabel()
+        self.duplicate_hint.setStyleSheet("color: #e65100; font-weight: bold;")
+        self.word_input.textChanged.connect(self._update_duplicate_hint)
 
         add_button = QPushButton("추가")
         add_button.clicked.connect(self.add_word)
+        add_button.setToolTip("입력한 단어와 뜻을 저장합니다. 이미 있는 단어면 뜻을 합칩니다.")
         self.save_button = QPushButton("수정 저장")
         self.save_button.clicked.connect(self.save_edit)
+        self.save_button.setToolTip("표에서 고른 단어의 뜻·품사를 수정합니다.")
         clear_button = QPushButton("입력 초기화")
         clear_button.clicked.connect(self.clear_form)
         self.delete_button = QPushButton("선택 단어 삭제")
         self.delete_button.clicked.connect(self.delete_selected)
+        self.delete_button.setToolTip("표에서 고른 단어를 지웁니다.")
 
         self.custom_table = make_table(["단어", "품사", "한글 뜻"])
         self.custom_table.itemSelectionChanged.connect(self.load_selected)
@@ -203,6 +242,7 @@ class AddWordPage(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(page_title("단어 추가"))
         layout.addLayout(form)
+        layout.addWidget(self.duplicate_hint)
         layout.addWidget(self.meaning_input)
         layout.addLayout(buttons)
         layout.addWidget(self.mode_label)
@@ -242,6 +282,18 @@ class AddWordPage(QWidget):
         self.meaning_input.setText(join_list(entry.meanings))
         self._set_editing(word)
         self.message_label.setText("")
+        self._update_duplicate_hint()
+
+    def _update_duplicate_hint(self, *_args):
+        """새 단어를 입력하는 중에 이미 있는 단어이면 칸 아래에 미리 알린다. 저장 시 경고 창은 그대로 뜬다."""
+        word = self.word_input.text().strip().lower()
+        if self.editing_word is not None or not word:
+            self.duplicate_hint.setText("")
+            return
+        if self.session.exists_word(word):
+            self.duplicate_hint.setText(f"'{word}'은(는) 이미 있는 단어입니다. 추가하면 뜻이 합쳐집니다.")
+        else:
+            self.duplicate_hint.setText("")
 
     def clear_form(self):
         self.custom_table.clearSelection()
@@ -250,6 +302,7 @@ class AddWordPage(QWidget):
         self.pos_combo.setCurrentIndex(0)
         self._set_editing(None)
         self.message_label.setText("")
+        self._update_duplicate_hint()
 
     def _read_form(self):
         word = self.word_input.text().strip().lower()
@@ -275,6 +328,8 @@ class AddWordPage(QWidget):
         self.message_label.setText(f"'{word}' 저장 완료 ({join_list(meanings)})")
         self.refresh_table()
         self.clear_form()
+        # 연속 입력을 위해 단어 칸으로 포커스를 돌린다.
+        self.word_input.setFocus()
 
     def save_edit(self):
         if self.editing_word is None:
@@ -326,6 +381,8 @@ class OnlineLookupWorker(QThread):
 
 
 ONLINE_DEBOUNCE_MS = 600
+# 온라인 조회 시간 제한(5초)보다 조금 길게 기다린다.
+ONLINE_SHUTDOWN_WAIT_MS = 6000
 
 
 class SearchPage(QWidget):
@@ -347,8 +404,11 @@ class SearchPage(QWidget):
         self.query_input = QLineEdit()
         self.query_input.setPlaceholderText("영어 단어 또는 한글 뜻 (입력하면 바로 검색됩니다)")
         self.query_input.textChanged.connect(self.search)
+        self.query_input.setToolTip("Enter 또는 ↓ 키로 결과 표로 이동합니다. 표에서 Esc를 누르면 다시 입력 칸으로 돌아옵니다.")
+        self.query_input.installEventFilter(self)
         self.result_table = make_table(["단어", "한글 뜻", "유의어"])
         self.result_table.itemSelectionChanged.connect(self.show_detail)
+        self.result_table.installEventFilter(self)
         self.detail_label = QLabel("행을 고르면 뜻, 영문 풀이, 예문을 보여 줍니다.")
         self.detail_label.setWordWrap(True)
         self.online_label = QLabel()
@@ -367,6 +427,20 @@ class SearchPage(QWidget):
         layout.addWidget(self.detail_label)
         layout.addWidget(self.online_label)
         layout.addWidget(self.message_label)
+
+    def eventFilter(self, watched, event):
+        """입력 칸에서 Enter·↓를 누르면 결과 표의 첫 행으로, 표에서 Esc를 누르면 입력 칸으로 옮긴다."""
+        if event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            if watched is self.query_input and key in (Qt.Key.Key_Down, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                if self.entries:
+                    self.result_table.setFocus()
+                    self.result_table.selectRow(0)
+                    return True
+            if watched is self.result_table and key == Qt.Key.Key_Escape:
+                self.query_input.setFocus()
+                return True
+        return super().eventFilter(watched, event)
 
     def set_online_settings(self, enabled, api_key):
         """설정의 온라인 사용 여부와 인증키를 반영한다. 키가 바뀌면 온라인 캐시를 비운다."""
@@ -430,9 +504,19 @@ class SearchPage(QWidget):
         worker.start()
 
     def on_online_lookup_done(self, query, results, error_message):
-        self.online_cache[query] = (results, error_message)
+        # 오류(네트워크, 한도 초과 등)는 일시적일 수 있으므로 캐시하지 않는다. 같은 검색어를 다시 입력하면 재조회한다.
+        if not error_message:
+            self.online_cache[query] = (results, error_message)
         if query == self.query_input.text().strip():
             self.show_online_result(results, error_message)
+
+    def shutdown(self):
+        """창을 닫을 때 호출한다. 실행 중인 온라인 조회가 끝날 때까지 기다려, 스레드가 살아 있는 채로 파괴되지 않게 한다."""
+        self.online_timer.stop()
+        for worker in self.online_workers:
+            if worker.isRunning():
+                worker.wait(ONLINE_SHUTDOWN_WAIT_MS)
+        self.online_workers = []
 
     def show_online_result(self, results, error_message):
         if error_message:

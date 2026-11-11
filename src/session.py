@@ -136,11 +136,15 @@ class UserSession:
     # ----- 암기·시험 기록 -----
 
     def record_memorize(self, word):
-        """암기 화면에서 단어를 열었을 때 기록한다. 오답률에는 넣지 않는다."""
+        """암기 화면에서 단어를 열었을 때 기록한다. 오답률에는 넣지 않는다.
+
+        같은 날 같은 단어를 여러 번 열어도 이력은 처음 한 번만 남긴다 (반복 클릭으로 이력이 부풀지 않도록).
+        """
         today_key = kst_today().isoformat()
         words = self.state["memorized"].setdefault(today_key, [])
-        if word not in words:
-            words.append(word)
+        if word in words:
+            return
+        words.append(word)
         self.save()
         self.store.append_history([self._history_row(
             RECORD_MEMORIZE, word, "", "", RESULT_OPENED, "", "")])
