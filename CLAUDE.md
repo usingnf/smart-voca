@@ -232,8 +232,10 @@ SDLC 단계별 산출물(§2), AI 에이전트 협업 지침(§3)이 정의되�
 
 - **테스트 실행**: `python -m unittest discover -s tests -v` (프로젝트 루트에서 실행)
 - **개발 실행**: `python src/main.py` (데이터는 `data/` 폴더 사용)
-- **exe 빌드**: `python -m PyInstaller --noconfirm --clean --onefile --windowed --name SmartVoca --icon ../src/assets/SmartVoca.ico --paths src --distpath dist --workpath build/pyi --specpath build src/main.py`
-  - `--icon` 경로는 spec 폴더(`build/`) 기준 상대경로다. 그래서 `../src/...`로 쓴다.
+- **exe 빌드**: `python -m PyInstaller --noconfirm --clean --onefile --windowed --name SmartVoca --icon ../src/assets/SmartVoca.ico --add-data "../src/assets/SmartVoca.ico;assets" --version-file ../packaging/version_info.txt --paths src --distpath dist --workpath build/pyi --specpath build src/main.py`
+  - `--icon`, `--add-data`, `--version-file` 경로는 spec 폴더(`build/`) 기준 상대경로다. 그래서 `../`로 쓴다.
+  - `--add-data`로 넣은 아이콘은 읽기 전용 자원이라 PyInstaller 임시 폴더(`_MEIPASS`)에서 읽는다. 사용자 데이터는 여전히 exe 옆 폴더를 쓴다.
+  - 파일 정보(제품 이름 "스마트 보카")는 `packaging/version_info.txt`에서 관리한다.
   - 아이콘 원본은 `src/assets/SmartVoca.ico`이며, 재생성은 `ai-agent/scripts/261111-앱아이콘생성.py`로 한다.
 - **exe 배포 방식**: `dist/SmartVoca.exe`와 같은 폴더에 `voca.csv`를 둔다. 제출물은 `SmartVoca.exe` 하나다. `voca.csv`, `users/`, `reports/`, `settings.json`은 실행 시 exe 옆에 생긴다.
 - **호스트 빌드**: 로컬 Windows에서 직접 빌드한다 (컨테이너 미사용).

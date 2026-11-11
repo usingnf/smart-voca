@@ -9,7 +9,7 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
 
-from config import APP_ICON_PATH, APP_TITLE, VOCA_PATH
+from config import APP_ICON_PATH, APP_TITLE, APP_USER_MODEL_ID, VOCA_PATH
 from session import UserSession
 from settings import load_settings
 from ui.login_dialog import LoginDialog
@@ -50,9 +50,21 @@ class AppController:
             self.app.quit()
 
 
+def set_windows_app_id():
+    """작업표시줄이 이 프로세스를 파이썬이 아닌 '스마트 보카'로 묶도록 식별자를 지정한다. Windows가 아니면 아무것도 하지 않는다.
+
+    QApplication을 만들기 전에 불러야 한다.
+    """
+    if sys.platform != "win32":
+        return
+    import ctypes
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+
+
 def main():
+    set_windows_app_id()
     app = QApplication(sys.argv)
-    # exe로 빌드된 경우 아이콘 파일은 exe 안에 들어가므로 이 경로가 없고, 그때는 exe 아이콘이 그대로 쓰인다.
+    # 기본 아이콘을 지정하면 모든 창(로그인 창, 메인 창, 대화상자)의 제목 표시줄과 작업표시줄에 적용된다.
     if APP_ICON_PATH.exists():
         app.setWindowIcon(QIcon(str(APP_ICON_PATH)))
     settings = load_settings()

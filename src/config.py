@@ -60,7 +60,19 @@ def resolve_base_dir():
 BASE_DIR = resolve_base_dir()
 VOCA_PATH = BASE_DIR / "voca.csv"
 
-# 앱 아이콘: 개발 실행 시 창 아이콘으로 쓴다. exe 아이콘은 빌드 시 --icon으로 넣는다.
-APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "SmartVoca.ico"
+def resource_path(relative_path):
+    """코드와 함께 들어가는 읽기 전용 자원(아이콘 등)의 경로.
+
+    exe로 빌드하면 PyInstaller가 푼 임시 폴더(_MEIPASS)에 들어 있다.
+    사용자 데이터(voca.csv, 이력 등)는 이 함수를 쓰지 않고 BASE_DIR을 쓴다.
+    """
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base / relative_path
+
+
+# 앱 아이콘: 제목 표시줄·작업표시줄 아이콘으로 쓴다. exe 파일 아이콘은 빌드 시 --icon으로 넣는다.
+APP_ICON_PATH = resource_path("assets/SmartVoca.ico")
+# 작업표시줄에서 이 앱을 파이썬과 별개의 앱으로 묶는 식별자 (Windows 전용)
+APP_USER_MODEL_ID = "SmartVoca.Desktop"
 USERS_DIR = BASE_DIR / "users"
 REPORTS_DIR = BASE_DIR / "reports"
