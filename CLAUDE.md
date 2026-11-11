@@ -232,7 +232,9 @@ SDLC 단계별 산출물(§2), AI 에이전트 협업 지침(§3)이 정의되�
 
 - **테스트 실행**: `python -m unittest discover -s tests -v` (프로젝트 루트에서 실행)
 - **개발 실행**: `python src/main.py` (데이터는 `data/` 폴더 사용)
-- **exe 빌드**: `python -m PyInstaller --noconfirm --clean --onefile --windowed --name SmartVoca --paths src --distpath dist --workpath build/pyi --specpath build src/main.py`
+- **exe 빌드**: `python -m PyInstaller --noconfirm --clean --onefile --windowed --name SmartVoca --icon ../src/assets/SmartVoca.ico --paths src --distpath dist --workpath build/pyi --specpath build src/main.py`
+  - `--icon` 경로는 spec 폴더(`build/`) 기준 상대경로다. 그래서 `../src/...`로 쓴다.
+  - 아이콘 원본은 `src/assets/SmartVoca.ico`이며, 재생성은 `ai-agent/scripts/261111-앱아이콘생성.py`로 한다.
 - **exe 배포 방식**: `dist/SmartVoca.exe`와 같은 폴더에 `voca.csv`를 둔다. 제출물은 `SmartVoca.exe` 하나다. `voca.csv`, `users/`, `reports/`, `settings.json`은 실행 시 exe 옆에 생긴다.
 - **호스트 빌드**: 로컬 Windows에서 직접 빌드한다 (컨테이너 미사용).
 - **알려진 함정**: 오프스크린 렌더링(`QT_QPA_PLATFORM=offscreen`)에서는 Windows 글꼴을 읽지 못해 한글이 깨진다. 화면 캡처는 `QT_QPA_PLATFORM=windows`로 한다.

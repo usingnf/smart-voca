@@ -59,5 +59,8 @@ def resolve_base_dir():
 
 BASE_DIR = resolve_base_dir()
 VOCA_PATH = BASE_DIR / "voca.csv"
+
+# 앱 아이콘: 개발 실행 시 창 아이콘으로 쓴다. exe 아이콘은 빌드 시 --icon으로 넣는다.
+APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "SmartVoca.ico"
 USERS_DIR = BASE_DIR / "users"
 REPORTS_DIR = BASE_DIR / "reports"

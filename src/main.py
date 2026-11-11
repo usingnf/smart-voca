@@ -6,9 +6,10 @@
 import sys
 
 from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
 
-from config import APP_TITLE, VOCA_PATH
+from config import APP_ICON_PATH, APP_TITLE, VOCA_PATH
 from session import UserSession
 from settings import load_settings
 from ui.login_dialog import LoginDialog
@@ -51,6 +52,9 @@ class AppController:
 
 def main():
     app = QApplication(sys.argv)
+    # exe로 빌드된 경우 아이콘 파일은 exe 안에 들어가므로 이 경로가 없고, 그때는 exe 아이콘이 그대로 쓰인다.
+    if APP_ICON_PATH.exists():
+        app.setWindowIcon(QIcon(str(APP_ICON_PATH)))
     settings = load_settings()
     apply_theme(app, settings.theme)
     apply_app_font(app, settings.font_size)
