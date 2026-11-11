@@ -1,2 +1,0 @@
-# smart-voca
-smart-voca
