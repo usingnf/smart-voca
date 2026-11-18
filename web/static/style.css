@@ -1,0 +1,205 @@
+/* 2026-11-18 - 클로드 스마트 보카 - 웹 화면 스타일 (밝게·어둡게 테마, 좁은 화면 대응) */
+/* 파일 위치: web/static/style.css */
+
+:root {
+  --bg: #f4f6fb;
+  --panel: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --accent: #2563eb;
+  --accent-text: #ffffff;
+  --ok: #15803d;
+  --bad: #b91c1c;
+  --soft: #e0e7ff;
+  --menu-bg: #111827;
+  --menu-text: #e5e7eb;
+  --menu-active: #2563eb;
+  --base-font: 16px;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #0f172a;
+  --panel: #1e293b;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --line: #334155;
+  --accent: #60a5fa;
+  --accent-text: #0f172a;
+  --ok: #4ade80;
+  --bad: #f87171;
+  --soft: #334155;
+  --menu-bg: #020617;
+  --menu-text: #cbd5e1;
+  --menu-active: #3b82f6;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+  font-size: var(--base-font);
+  line-height: 1.6;
+}
+
+h2 { margin: 0 0 12px; font-size: 1.5em; }
+h3 { margin: 0 0 8px; font-size: 1.1em; }
+p { margin: 6px 0; }
+
+/* ----- 상단 바 ----- */
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 700; font-size: 1.2em; }
+.who { color: var(--muted); font-size: 0.95em; }
+
+/* ----- 레이아웃과 메뉴 ----- */
+.layout {
+  display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 110px);
+}
+.menu {
+  background: var(--menu-bg); color: var(--menu-text); padding: 12px 0;
+}
+.menu-section {
+  padding: 14px 20px 4px; font-size: 0.85em; color: #94a3b8; letter-spacing: 0.05em;
+}
+.menu-item {
+  display: block; padding: 10px 20px; color: inherit; text-decoration: none; border-left: 4px solid transparent;
+}
+.menu-item:hover { background: rgba(255, 255, 255, 0.06); }
+.menu-item.active { background: rgba(255, 255, 255, 0.08); border-left-color: var(--menu-active); font-weight: 700; }
+
+.view { padding: 24px; max-width: 920px; width: 100%; }
+.footer {
+  padding: 10px 20px; color: var(--muted); font-size: 0.85em; border-top: 1px solid var(--line);
+}
+
+/* ----- 카드, 버튼, 입력 ----- */
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 18px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.btn {
+  display: inline-block; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); font: inherit; cursor: pointer; text-decoration: none;
+  min-height: 42px;
+}
+.btn:hover { filter: brightness(0.97); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 700; }
+.btn.ghost { background: transparent; }
+.btn.danger { color: var(--bad); border-color: var(--bad); }
+.btn.danger.ghost { background: transparent; }
+
+input[type="text"], input[type="password"], input[type="date"], select {
+  font: inherit; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); min-width: 180px; min-height: 42px;
+}
+input[type="range"] { width: 200px; }
+.text-input { width: 100%; font-size: 1.15em; }
+
+.row { display: flex; gap: 10px; align-items: center; }
+.row.between { justify-content: space-between; }
+.row.end { justify-content: flex-end; margin-top: 12px; }
+.row.wrap { flex-wrap: wrap; }
+
+.form-row { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; }
+.form-row > label:first-child { min-width: 110px; padding-top: 10px; font-weight: 700; }
+.checks { display: flex; gap: 10px; flex-wrap: wrap; }
+.check { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; }
+
+.muted { color: var(--muted); }
+.notice { color: var(--muted); min-height: 1.6em; }
+.notice.ok, .verdict.ok { color: var(--ok); font-weight: 700; }
+.notice.error, .error, .verdict.bad { color: var(--bad); font-weight: 700; }
+.example { color: var(--muted); font-style: italic; }
+.attribution { color: var(--muted); font-size: 0.85em; }
+
+.tag {
+  display: inline-block; padding: 2px 8px; margin-left: 6px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-text); font-size: 0.8em;
+}
+.tag.soft { background: var(--soft); color: var(--text); }
+
+/* ----- 암기 ----- */
+.memo-card { min-height: 180px; text-align: center; padding: 28px 18px; }
+.memo-question { font-size: 2.2em; font-weight: 800; margin-bottom: 12px; word-break: keep-all; }
+.memo-answer { font-size: 1.6em; color: var(--accent); margin: 8px 0 14px; word-break: keep-all; }
+.memo-card p { text-align: left; }
+
+/* ----- 시험 진행 ----- */
+.progress { margin-bottom: 12px; }
+.progress-label { color: var(--muted); font-size: 0.9em; margin-bottom: 4px; }
+.progress-track { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); transition: width 0.3s ease; }
+.prompt { font-size: 1.35em; font-weight: 700; margin-bottom: 14px; word-break: keep-all; }
+.answer-area { margin-top: 8px; }
+
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.choices.ox { grid-template-columns: 1fr 1fr; }
+.choice {
+  padding: 14px; border-radius: 10px; border: 2px solid var(--line); background: var(--panel);
+  color: var(--text); font: inherit; text-align: left; cursor: pointer; min-height: 56px; word-break: keep-all;
+}
+.choice:hover { border-color: var(--accent); }
+.choice.selected { border-color: var(--accent); background: var(--soft); font-weight: 700; }
+.ox-choice { text-align: center; font-size: 1.2em; }
+
+.verdict { font-size: 1.1em; }
+.result-list { list-style: none; padding: 0; }
+.result-list li { padding: 12px 14px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--line); }
+.result-list .row-ok { border-left: 5px solid var(--ok); }
+.result-list .row-bad { border-left: 5px solid var(--bad); }
+
+/* ----- 단어 목록과 검색 결과 ----- */
+.word-list { padding-left: 18px; }
+.word-list li { margin-bottom: 6px; }
+.entry { margin-bottom: 10px; }
+.entry-head { margin-bottom: 4px; }
+
+/* ----- 보고서 ----- */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.stat-label { color: var(--muted); font-size: 0.9em; }
+.stat-value { font-size: 1.6em; font-weight: 800; }
+
+.bars { display: flex; align-items: flex-end; gap: 6px; height: 160px; padding-top: 8px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+.bar { width: 100%; background: var(--accent); border-radius: 6px 6px 0 0; min-height: 2px; }
+.bar-col:first-child .bar { opacity: 0.9; }
+.bar-label { font-size: 0.7em; color: var(--muted); margin-top: 4px; }
+
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+
+/* ----- 계정 ----- */
+.account-item { padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; gap: 8px; }
+
+/* ----- 알림 ----- */
+.toast {
+  position: fixed; right: 20px; bottom: 20px; max-width: 360px; padding: 12px 16px; border-radius: 10px;
+  background: var(--menu-bg); color: #fff; opacity: 0; transform: translateY(10px);
+  transition: opacity 0.2s ease, transform 0.2s ease; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { background: var(--bad); }
+
+/* ----- 좁은 화면 (휴대폰, 작은 창) ----- */
+@media (max-width: 720px) {
+  .layout { grid-template-columns: 1fr; }
+  .menu { display: flex; flex-wrap: wrap; padding: 6px; }
+  .menu-section { display: none; }
+  .menu-item { padding: 8px 10px; border-left: none; border-bottom: 3px solid transparent; }
+  .menu-item.active { border-bottom-color: var(--menu-active); }
+  .view { padding: 14px; }
+  .choices { grid-template-columns: 1fr; }
+  .memo-question { font-size: 1.7em; }
+  .form-row > label:first-child { min-width: 100%; padding-top: 0; }
+  .topbar { flex-direction: column; align-items: flex-start; gap: 4px; }
+}

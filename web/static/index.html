@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <!-- 2026-11-18 - 클로드 스마트 보카 - 웹 화면의 뼈대 (스크립트는 공통 → 학습 → 관리 → 시작 순서) -->
+  <!-- 파일 위치: web/static/index.html -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>스마트 보카</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">📘 스마트 보카</div>
+    <div class="who" id="who"></div>
+  </header>
+
+  <div class="layout">
+    <nav class="menu" id="menu" aria-label="주요 메뉴"></nav>
+    <main class="view" id="view" aria-live="polite"></main>
+  </div>
+
+  <footer class="footer" id="footer"></footer>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="/static/common.js"></script>
+  <script src="/static/study.js"></script>
+  <script src="/static/manage.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
