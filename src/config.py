@@ -54,8 +54,18 @@ RESULT_WRONG = "오답"
 TEST_RECORD_KINDS = frozenset({RECORD_TEST, RECORD_ASSIGNMENT_TEST})
 
 
+DATA_DIR_ENV = "SMARTVOCA_DATA_DIR"
+
+
 def resolve_base_dir():
-    """exe 실행이면 exe 옆 폴더, 개발 실행이면 프로젝트의 data 폴더를 쓴다."""
+    """데이터 폴더를 정한다.
+
+    환경 변수 SMARTVOCA_DATA_DIR이 있으면 그 폴더를 쓴다 (웹 서버 등에서 지정).
+    없으면 exe 실행이면 exe 옆 폴더, 개발 실행이면 프로젝트의 data 폴더를 쓴다.
+    """
+    custom_dir = os.environ.get(DATA_DIR_ENV, "").strip()
+    if custom_dir:
+        return Path(custom_dir).resolve()
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[1] / "data"

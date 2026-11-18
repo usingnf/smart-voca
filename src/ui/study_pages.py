@@ -4,7 +4,6 @@
 # 파일 위치: src/ui/study_pages.py
 
 import html
-import re
 
 from PyQt6.QtCore import QEvent, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QShortcut
@@ -29,9 +28,8 @@ from online_dict import ATTRIBUTION_TEXT, MSG_NO_KEY, OnlineDictError, search_en
 from quiz import DIRECTION_EN_TO_KO, DIRECTION_KO_TO_EN
 from speech import speak_word
 from ui.theme import mark_font_level
-from vocab import POS_LABELS, join_list, search_by_english, search_by_meaning, split_list
+from vocab import POS_LABELS, WORD_PATTERN, join_list, search_by_english, search_by_meaning, split_list
 
-WORD_PATTERN = re.compile(r"^[A-Za-z][A-Za-z '\-]{0,39}$")
 
 
 def page_title(text):

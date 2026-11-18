@@ -4,9 +4,13 @@
 # 파일 위치: src/vocab.py
 
 import csv
+import re
 from dataclasses import dataclass, field
 
 from config import VOCA_PATH
+
+# 사용자가 추가하는 영단어 형식: 영문자로 시작, 영문자·공백·하이픈·작은따옴표 (화면과 웹 API가 함께 쓴다)
+WORD_PATTERN = re.compile(r"^[A-Za-z][A-Za-z '\-]{0,39}$")
 
 COLUMN_WORD = "단어"
 COLUMN_POS = "품사"
