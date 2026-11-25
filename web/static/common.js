@@ -12,7 +12,10 @@ SV.api = async function (path, options = {}) {
     init.headers["Content-Type"] = "application/json";
     init.body = JSON.stringify(options.body);
   }
-  const response = await fetch(path, init);
+  // 앞의 /를 떼어 현재 화면 주소 기준의 상대 주소로 보낸다.
+  // 학교 서버는 앱을 /2026/voca-<학번>/ 아래로 옮기므로 /api/...로 보내면 서버 루트로 가 버린다.
+  const relativePath = path.replace(/^\//, "");
+  const response = await fetch(relativePath, init);
   const text = await response.text();
   let data = null;
   if (text) {

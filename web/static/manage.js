@@ -193,7 +193,7 @@
           SV_.el("label", { text: "기간" }), periodSelect,
           SV_.el("a", {
             class: "btn ghost",
-            href: `/api/history/export?${SV_.query()}`,
+            href: `api/history/export?${SV_.query()}`,
             text: "이력 CSV 내려받기",
           }),
         ]),
