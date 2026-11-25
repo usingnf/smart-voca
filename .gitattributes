@@ -1,8 +1,33 @@
-# 줄바꿈 규칙: 텍스트 파일은 저장소에 LF로 두고, 작업 폴더에서는 Git 설정에 맞춘다.
-* text=auto
+# 2026-11-25 - 클로드 스마트 보카 - 줄바꿈 규칙 (Windows에서 작업해도 저장소와 이미지는 LF로 통일)
+# 파일 위치: .gitattributes
+* text=auto eol=lf
 
 # 바이너리 파일은 변환하지 않는다
 *.png binary
 *.ico binary
 *.jpg binary
 *.exe binary
+
+# API 키와 사용자 데이터 (공개 저장소에 올리지 않음)
+data/settings.json
+dist/settings.json
+settings.json
+users/
+reports/
+
+# 빌드 산출물
+dist/
+build/
+
+# 파이썬 캐시와 임시 파일
+__pycache__/
+*.pyc
+*.tmp
+*.csv.tmp
+*.json.tmp
+
+# 환경 변수 파일
+.env
+
+# 원본 수집 데이터 (용량이 커서 제외)
+data/raw/

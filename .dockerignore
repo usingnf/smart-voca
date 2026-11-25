@@ -1,0 +1,45 @@
+# 2026-11-25 - 클로드 스마트 보카 - 이미지 빌드에서 제외할 파일
+# 파일 위치: .dockerignore
+
+# 버전 관리·가상환경·캐시
+.git
+.gitignore
+.gitattributes
+.venv
+venv
+env
+node_modules
+__pycache__
+*.pyc
+
+# 비밀값과 사용자 데이터 (이미지에 넣지 않는다)
+.env
+.env.*
+*.db
+*.db-journal
+settings.json
+users/
+reports/
+data/users/
+data/reports/
+data/settings.json
+data/*.db
+
+# 개발 도구와 문서·테스트·빌드 산출물
+.vscode
+.idea
+*.swp
+dist/
+build/
+tests/
+docs/
+ai-agent/
+packaging/
+.github/
+*.md
+*.bat
+*.spec
+*.log
+*.tmp
+*.json.tmp
+*.csv.tmp
