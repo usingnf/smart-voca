@@ -38,6 +38,7 @@ from report import (  # noqa: E402
     PERIOD_CUSTOM, PERIOD_OPTIONS, build_summary, daily_accuracy, period_range,
 )
 from sampling import pick_weighted_words  # noqa: E402
+from config import PREF_DAILY_SIZE_CHOICES, PREF_REVIEW_MAX_CHOICES, RUN_REPORT_LIMIT  # noqa: E402
 from session import UserSession  # noqa: E402
 from settings import THEME_CHOICES, load_settings, save_settings  # noqa: E402
 from timeutil import kst_today  # noqa: E402
@@ -85,6 +86,12 @@ class AuthBody(BaseModel):
 
 class VisibilityUpdate(BaseModel):
     is_public: bool
+
+
+class PrefsUpdate(BaseModel):
+    username: str
+    daily_size: int
+    review_max_percent: int
 
 
 class WordCreate(BaseModel):
@@ -679,7 +686,24 @@ def create_app():
                 for word, asked, wrong, rate in summary["top_wrong"]
             ],
             "daily": [{"label": label, "rate": rate} for label, rate in daily_accuracy(rows, today)],
+            "runs": session.recent_runs(RUN_REPORT_LIMIT),
         }
+
+    # ----- 학습 설정 (계정별, VOCA-FR-061·062) -----
+
+    @app.get("/api/me/prefs")
+    def get_prefs(username: str):
+        session = open_session(vocabulary, username)
+        return {**session.prefs(), "daily_choices": PREF_DAILY_SIZE_CHOICES,
+                "review_choices": PREF_REVIEW_MAX_CHOICES}
+
+    @app.put("/api/me/prefs")
+    def set_prefs(body: PrefsUpdate):
+        session = open_session(vocabulary, body.username)
+        if body.daily_size not in PREF_DAILY_SIZE_CHOICES or body.review_max_percent not in PREF_REVIEW_MAX_CHOICES:
+            raise HTTPException(400, "하루 학습량과 복습 비율 상한은 정해진 값 중에서 고르세요.")
+        session.set_prefs(body.daily_size, body.review_max_percent)
+        return session.prefs()
 
     # ----- 옵션 -----
 

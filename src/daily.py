@@ -25,10 +25,10 @@ def error_rate(stats, word):
     return record["wrong"] / record["asked"]
 
 
-def choose_review_count(rng):
-    """복습 비율을 10~50%에서 무작위로 정하고 복습 단어 수를 반올림한다."""
-    ratio = rng.uniform(REVIEW_RATIO_MIN, REVIEW_RATIO_MAX)
-    return int(DAILY_ASSIGNMENT_SIZE * ratio + 0.5)
+def choose_review_count(rng, daily_size=DAILY_ASSIGNMENT_SIZE, ratio_max=REVIEW_RATIO_MAX):
+    """복습 비율을 10%부터 상한(기본 50%) 사이에서 무작위로 정하고 복습 단어 수를 반올림한다."""
+    ratio = rng.uniform(REVIEW_RATIO_MIN, max(REVIEW_RATIO_MIN, ratio_max))
+    return int(daily_size * ratio + 0.5)
 
 
 def find_assignment(state, day):
@@ -101,7 +101,7 @@ def pick_high_error_words(state, pool, exclude, count, rng):
     return candidates[:count]
 
 
-def create_today_assignment(state, today, pool, rng):
+def create_today_assignment(state, today, pool, rng, daily_size=DAILY_ASSIGNMENT_SIZE, ratio_max=REVIEW_RATIO_MAX):
     """오늘 과제를 만들어 state에 추가한다. 이미 있으면 그대로 반환한다.
 
     pool은 단어 풀(dict)이다. 과제 구성 규칙은 설계서 5장을 따른다.
@@ -112,12 +112,12 @@ def create_today_assignment(state, today, pool, rng):
 
     close_overdue(state)
 
-    review_count = choose_review_count(rng)
+    review_count = choose_review_count(rng, daily_size, ratio_max)
     yesterday_key = (today - timedelta(days=1)).isoformat()
     yesterday_words = list(state["memorized"].get(yesterday_key, []))
 
     review_words = pick_review_words(state, yesterday_words, review_count, pool, rng)
-    new_count = DAILY_ASSIGNMENT_SIZE - len(review_words)
+    new_count = daily_size - len(review_words)
     new_words = pick_new_words(state, pool, set(review_words), new_count, rng)
 
     shortage = new_count - len(new_words)

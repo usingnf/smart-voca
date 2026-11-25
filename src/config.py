@@ -44,6 +44,12 @@ IMPORT_MAX_LINES = 5000
 IMPORT_MAX_CHARS = 2_000_000
 IMPORT_ERROR_SHOW = 20
 
+# 계정별 학습 설정 (VOCA-FR-061): 하루 학습량과 복습 비율 상한 (퍼센트)
+PREF_DAILY_SIZE_CHOICES = [5, 10, 15, 20, 25, 30]
+PREF_REVIEW_MAX_CHOICES = [10, 20, 30, 40, 50]
+RUN_REPORT_LIMIT = 20   # 보고서에 보여 줄 최근 회차 수 (VOCA-FR-032)
+RUN_KEEP_LIMIT = 500    # 계정 상태에 보관하는 회차 수
+
 # 품사 표시 순서 (키: noun, verb, adj, adv, other)
 POS_DEFAULT_ORDER = ["noun", "verb", "adj", "adv", "other"]
 

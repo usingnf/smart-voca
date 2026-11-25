@@ -11,8 +11,11 @@ from config import (
     RESULT_CORRECT,
     RESULT_OPENED,
     RESULT_WRONG,
+    RUN_KEEP_LIMIT,
     STATUS_MISSED,
     STATUS_PENDING,
+    DAILY_ASSIGNMENT_SIZE,
+    REVIEW_RATIO_MAX,
 )
 from daily import complete_assignment, create_today_assignment, day_number, find_assignment
 from quiz import score_of
@@ -123,9 +126,25 @@ class UserSession:
 
     # ----- 과제 -----
 
+    def prefs(self):
+        """계정의 학습 설정. 정하지 않았으면 기본값(하루 20개, 복습 비율 상한 50%)이다."""
+        stored = self.state.get("prefs", {})
+        return {
+            "daily_size": stored.get("daily_size", DAILY_ASSIGNMENT_SIZE),
+            "review_max_percent": stored.get("review_max_percent", round(REVIEW_RATIO_MAX * 100)),
+        }
+
+    def set_prefs(self, daily_size, review_max_percent):
+        self.state["prefs"] = {"daily_size": daily_size, "review_max_percent": review_max_percent}
+        self.save()
+
     def today_assignment(self):
-        """오늘 과제를 가져온다. 없으면 만든다."""
-        assignment = create_today_assignment(self.state, kst_today(), self.pool, self.rng)
+        """오늘 과제를 가져온다. 없으면 만든다. 계정의 학습 설정을 따른다."""
+        prefs = self.prefs()
+        assignment = create_today_assignment(
+            self.state, kst_today(), self.pool, self.rng,
+            daily_size=prefs["daily_size"], ratio_max=prefs["review_max_percent"] / 100,
+        )
         self.save()
         return assignment
 
@@ -179,8 +198,25 @@ class UserSession:
                 RESULT_CORRECT if result.is_correct else RESULT_WRONG,
                 result.user_answer, result.expected_text,
             ))
+        # 회차(시험 한 번)의 정답 수를 남긴다. 보고서의 회차별 추이에 쓴다 (VOCA-FR-032).
+        correct = sum(1 for result in results if result.is_correct)
+        runs = self.state.setdefault("runs", [])
+        runs.append({"at": kst_now().isoformat(timespec="seconds"), "kind": kind_label,
+                     "correct": correct, "total": len(results)})
+        del runs[:-RUN_KEEP_LIMIT]
         self.save()
         self.store.append_history(history_rows)
+
+    def recent_runs(self, limit):
+        """최근 회차의 정답률. 회차 번호는 시험을 치른 순서다."""
+        runs = self.state.get("runs", [])
+        first_number = len(runs) - len(runs[-limit:])
+        return [{
+            "label": f"{first_number + offset + 1}회",
+            "at": run["at"][:10],
+            "kind": run["kind"],
+            "rate": run["correct"] / run["total"] if run["total"] else None,
+        } for offset, run in enumerate(runs[-limit:])]
 
     def wrong_words(self):
         """가장 최근 시험에서 틀린 단어 목록 (기능 1: 오답 재시험용). 최근 기록 순서."""

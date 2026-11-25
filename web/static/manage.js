@@ -275,9 +275,24 @@
 
     return [
       cards,
+      SV_.card([SV_.el("h3", { text: "회차별 정답률 (최근 20회)" }), runBars(report.runs)]),
       SV_.card([SV_.el("h3", { text: "최근 14일 시험 정답률" }), bars]),
       SV_.card([SV_.el("h3", { text: "오답이 많은 단어" }), wrongTable]),
     ];
+  }
+
+  // 회차(시험 한 번)별 정답률 막대. 회차 번호는 시험을 치른 순서다 (VOCA-FR-032).
+  function runBars(runs) {
+    if (!runs.length) {
+      return SV_.el("p", { class: "muted", text: "아직 치른 시험이 없습니다." });
+    }
+    return SV_.el("div", { class: "bars" }, runs.map((run) => {
+      const height = run.rate === null ? 0 : Math.round(run.rate * 100);
+      return SV_.el("div", { class: "bar-col", title: `${run.label} · ${run.at} · ${run.rate === null ? "-" : pct(run.rate)}` }, [
+        SV_.el("div", { class: "bar", style: `height:${height}%` }),
+        SV_.el("div", { class: "bar-label", text: run.label }),
+      ]);
+    }));
   }
 
   function statCard(label, value) {

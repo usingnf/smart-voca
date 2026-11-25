@@ -12,7 +12,50 @@
 
   // ----- 내 계정 -----
 
-  SV_.pages.account = function () {
+  // 학습 설정 카드: 하루 학습량과 복습 비율 상한 (계정별 저장, 다음 과제부터 적용)
+  async function buildPrefsCard() {
+    let prefs;
+    try {
+      prefs = await SV_.api(`/api/me/prefs?${SV_.query()}`);
+    } catch (error) {
+      return SV_.card([SV_.el("p", { class: "error", text: error.message })]);
+    }
+    const dailySelect = SV_.el("select", { id: "pref-daily" }, prefs.daily_choices.map((value) =>
+      SV_.el("option", { value: String(value), text: `${value}개`, selected: value === prefs.daily_size })));
+    const reviewSelect = SV_.el("select", { id: "pref-review" }, prefs.review_choices.map((value) =>
+      SV_.el("option", { value: String(value), text: `${value}%`, selected: value === prefs.review_max_percent })));
+    const message = SV_.el("p", { class: "notice", "aria-live": "polite" });
+
+    async function savePrefs() {
+      try {
+        await SV_.api("/api/me/prefs", {
+          method: "PUT",
+          body: {
+            username: SV_.state.username,
+            daily_size: Number(dailySelect.value),
+            review_max_percent: Number(reviewSelect.value),
+          },
+        });
+        message.className = "notice ok";
+        message.textContent = "저장했습니다. 다음 과제부터 적용됩니다.";
+      } catch (error) {
+        message.className = "notice error";
+        message.textContent = error.message;
+      }
+    }
+
+    return SV_.card([
+      SV_.el("h3", { text: "학습 설정" }),
+      SV_.el("div", { class: "form-row" }, [SV_.el("label", { text: "하루 학습량" }), dailySelect]),
+      SV_.el("div", { class: "form-row" }, [SV_.el("label", { text: "복습 비율 상한" }), reviewSelect]),
+      SV_.el("p", { class: "muted", text: "복습 비율은 과제마다 10%부터 이 상한 사이에서 무작위로 정합니다. 시험 기본값은 옵션 화면에서 바꿉니다." }),
+      message,
+      SV_.el("div", { class: "row end" }, [SV_.button("저장", savePrefs, "primary")]),
+    ]);
+  }
+
+  SV_.pages.account = async function () {
+    const prefsNode = await buildPrefsCard();
     const visibility = SV_.el("input", { type: "checkbox", id: "my-public" });
     visibility.checked = Boolean(SV_.state.isPublic);
     const message = SV_.el("p", { class: "notice", "aria-live": "polite" });
@@ -70,6 +113,7 @@
           : SV_.el("label", { class: "check" }, [visibility, " 다른 계정 보기에 공개 (이름과 진척 통계가 다른 사용자에게 보입니다)"]),
         message,
       ]),
+      prefsNode,
       SV_.card([
         SV_.el("h3", { text: "기록과 계정" }),
         SV_.el("div", { class: "row" }, [

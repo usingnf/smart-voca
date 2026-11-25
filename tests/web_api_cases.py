@@ -316,6 +316,33 @@ class WebApiCaseTests(unittest.TestCase):
         after = self.client.get("/api/assignment", params=self.params()).json()
         self.assertEqual(after["memorized_count"], 1)
 
+    # ----- 학습 설정, 회차, 계정 삭제 (v1.6) -----
+
+    def test_prefs_change_daily_size_and_are_validated(self):
+        self.assertEqual(self.client.put("/api/me/prefs", json={
+            "username": self.user, "daily_size": 10, "review_max_percent": 50,
+        }).status_code, 200)
+        assignment = self.client.get("/api/assignment", params=self.params()).json()
+        self.assertEqual(len(assignment["words"]), 10)
+        bad = self.client.put("/api/me/prefs", json={
+            "username": self.user, "daily_size": 7, "review_max_percent": 50,
+        })
+        self.assertEqual(bad.status_code, 400)
+
+    def test_report_lists_runs_after_grading(self):
+        quiz = self.start_test_quiz(count=5).json()
+        graded = self.client.post(f"/api/quiz/{quiz['quiz_id']}/grade", json={"answers": ["zzz-no-match"] * 5})
+        self.assertEqual(graded.status_code, 200)
+        report = self.client.get("/api/report", params=self.params()).json()
+        self.assertEqual(len(report["runs"]), 1)
+        self.assertEqual(report["runs"][0]["label"], "1회")
+        self.assertEqual(report["runs"][0]["rate"], 0.0)
+
+    def test_delete_account_removes_login(self):
+        self.assertEqual(self.client.delete(f"/api/users/{self.user}").status_code, 200)
+        self.client.cookies.clear()
+        self.assertEqual(self.login_as(self.user, self.password).status_code, 401)
+
 
 if __name__ == "__main__":
     unittest.main()
