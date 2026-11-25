@@ -220,15 +220,18 @@
         SV_.el("div", { class: "bar-label", text: day.label }),
       ]);
     }));
+    // 표는 좁은 화면에서 칸 안에서만 가로 스크롤되도록 한 겹 감싼다.
     const wrongTable = report.top_wrong.length
-      ? SV_.el("table", { class: "table" }, [
-        SV_.el("thead", {}, [SV_.el("tr", {}, ["단어", "출제", "오답", "오답률"].map((text) => SV_.el("th", { text })))]),
-        SV_.el("tbody", {}, report.top_wrong.map((row) => SV_.el("tr", {}, [
-          SV_.el("td", { text: row.word }),
-          SV_.el("td", { text: String(row.asked) }),
-          SV_.el("td", { text: String(row.wrong) }),
-          SV_.el("td", { text: pct(row.rate) }),
-        ]))),
+      ? SV_.el("div", { class: "table-scroll" }, [
+        SV_.el("table", { class: "table" }, [
+          SV_.el("thead", {}, [SV_.el("tr", {}, ["단어", "출제", "오답", "오답률"].map((text) => SV_.el("th", { text })))]),
+          SV_.el("tbody", {}, report.top_wrong.map((row) => SV_.el("tr", {}, [
+            SV_.el("td", { text: row.word }),
+            SV_.el("td", { text: String(row.asked) }),
+            SV_.el("td", { text: String(row.wrong) }),
+            SV_.el("td", { text: pct(row.rate) }),
+          ]))),
+        ]),
       ])
       : SV_.el("p", { class: "muted", text: "오답 기록이 없습니다." });
 
