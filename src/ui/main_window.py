@@ -109,7 +109,7 @@ class MainWindow(QMainWindow):
         self.show_pending_notice()
 
     def apply_settings(self, new_settings, save=True):
-        """옵션을 적용한다. 저장을 원하면 settings.json에도 쓴다."""
+        """옵션을 적용한다. 저장을 원하면 DB(voca.db)에도 쓴다."""
         self.settings = new_settings.sanitized()
         app = QApplication.instance()
         apply_theme(app, self.settings.theme)

@@ -72,7 +72,8 @@ def resolve_base_dir():
 
 
 BASE_DIR = resolve_base_dir()
-VOCA_PATH = BASE_DIR / "voca.csv"
+# 단어 파일 경로. 환경 변수 VOCA_PATH가 있으면 그 파일을 쓴다 (컨테이너에서 읽기 전용 이미지 안의 파일을 가리킬 때 쓴다).
+VOCA_PATH = Path(os.environ.get("VOCA_PATH", "").strip() or BASE_DIR / "voca.csv")
 
 def resource_path(relative_path):
     """코드와 함께 들어가는 읽기 전용 자원(아이콘 등)의 경로.
@@ -88,8 +89,9 @@ def resource_path(relative_path):
 APP_ICON_PATH = resource_path("assets/SmartVoca.ico")
 # 작업표시줄에서 이 앱을 파이썬과 별개의 앱으로 묶는 식별자 (Windows 전용)
 APP_USER_MODEL_ID = "SmartVoca.Desktop"
-USERS_DIR = BASE_DIR / "users"
 REPORTS_DIR = BASE_DIR / "reports"
+# 사용자 데이터(계정, 단어, 이력, 상태, 옵션)를 담는 SQLite 파일. 환경 변수 DB_PATH가 있으면 그 경로를 쓴다.
+DB_PATH = Path(os.environ.get("DB_PATH", "").strip() or BASE_DIR / "voca.db")
 
 # 처리되지 않은 오류 기록. exe 옆에 파일을 늘리지 않으려고 사용자 로컬 앱 데이터 폴더에 둔다.
 ERROR_LOG_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "SmartVoca" / "error.log"

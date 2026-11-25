@@ -29,7 +29,7 @@ from quiz import (  # noqa: E402
 )
 from report import PERIOD_LAST_7, build_summary, period_range, top_wrong_words  # noqa: E402
 from settings import AppSettings  # noqa: E402
-from user_store import UserStore, normalize_username  # noqa: E402
+from user_store import UserStore, list_user_keys, normalize_username  # noqa: E402
 from vocab import WordEntry  # noqa: E402
 
 
@@ -180,7 +180,8 @@ class ReportTests(unittest.TestCase):
 class StoreTests(unittest.TestCase):
     def test_reset_keeps_custom_words(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            store = UserStore("tester", base_dir=temp_dir)
+            db_path = Path(temp_dir) / "test.db"
+            store = UserStore("tester", db_path=db_path)
             store.create()
             store.save_custom_words({"apple": WordEntry("apple", "noun", ["사과"], source="사용자 입력")})
             store.append_history([{"일시": "2026-10-21T10:00:00+09:00", "구분": "시험", "단어": "apple",
@@ -188,6 +189,40 @@ class StoreTests(unittest.TestCase):
             store.reset()
             self.assertEqual(store.read_history(), [])
             self.assertIn("apple", store.load_custom_words())
+
+    def test_history_keeps_order_and_korean_keys(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = UserStore("tester", db_path=Path(temp_dir) / "test.db")
+            store.create()
+            rows = [{"일시": f"2026-10-21T10:00:0{i}+09:00", "구분": "시험", "단어": word,
+                     "방향": "영어→한글", "유형": "단답형", "결과": "오답", "입력값": "x", "정답": "y"}
+                    for i, word in enumerate(["apple", "pear"])]
+            store.append_history(rows)
+            self.assertEqual(store.read_history(), rows)
+
+    def test_deleting_account_removes_its_data(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "test.db"
+            store = UserStore("tester", db_path=db_path)
+            store.create()
+            store.save_state({"assignments": [], "queue": ["apple"], "stats": {}, "memorized": {}})
+            store.append_history([{"일시": "2026-10-21T10:00:00+09:00", "구분": "암기", "단어": "apple",
+                                   "방향": "", "유형": "", "결과": "열람", "입력값": "", "정답": ""}])
+            store.delete()
+            self.assertFalse(store.exists())
+            self.assertEqual(list_user_keys(db_path), [])
+            self.assertEqual(UserStore("tester", db_path=db_path).read_history(), [])
+
+    def test_settings_round_trip_through_database(self):
+        from settings import AppSettings, load_settings, save_settings
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "test.db"
+            self.assertEqual(load_settings(db_path), AppSettings())
+            save_settings(AppSettings(theme="어둡게", exam_count=30, krdict_api_key=" key "), db_path)
+            loaded = load_settings(db_path)
+            self.assertEqual(loaded.theme, "어둡게")
+            self.assertEqual(loaded.exam_count, 30)
+            self.assertEqual(loaded.krdict_api_key, "key")
 
 
 class PartOfSpeechTests(unittest.TestCase):

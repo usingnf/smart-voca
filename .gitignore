@@ -16,6 +16,10 @@ __pycache__/
 *.csv.tmp
 *.json.tmp
 
+# 사용자 데이터 DB (계정·이력·옵션)
+*.db
+*.db-journal
+
 # 환경 변수 파일
 .env
 

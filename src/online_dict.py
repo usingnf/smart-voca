@@ -16,7 +16,7 @@ REQUEST_TIMEOUT_SECONDS = 5
 
 ATTRIBUTION_TEXT = "출처: 국립국어원 한국어기초사전 (크리에이티브 커먼즈 저작자표시-동일조건변경허락 2.0 대한민국)"
 
-MSG_NO_KEY ="온라인 검색 인증키가 없어 건너뜁니다. settings.json의 krdict_api_key를 입력하세요."
+MSG_NO_KEY ="온라인 검색 인증키가 없어 건너뜁니다. 옵션 화면에서 입력하세요."
 MSG_OFFLINE = "인터넷에 연결되어 있지 않아 온라인 검색을 건너뜁니다. 로컬 결과만 표시합니다."
 
 

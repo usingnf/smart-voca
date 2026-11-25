@@ -4,7 +4,6 @@
 # 파일 위치: src/session.py
 
 import random
-import shutil
 
 from config import (
     RECORD_MEMORIZE,
@@ -18,7 +17,7 @@ from config import (
 from daily import complete_assignment, create_today_assignment, find_assignment
 from quiz import score_of
 from timeutil import kst_now, kst_today
-from user_store import UserStore, make_custom_entry
+from user_store import UserStore, history_csv_bytes, make_custom_entry
 
 class UserSession:
     """한 사용자의 모든 상태를 다룬다. 화면은 이 객체만 호출한다."""
@@ -184,11 +183,12 @@ class UserSession:
         self.store.delete()
 
     def export_history(self, target_path):
-        """이력 CSV를 지정한 경로로 복사한다. 이력이 없으면 False."""
-        if not self.store.history_path.exists():
+        """이력을 CSV 파일로 저장한다. 이력이 없으면 False."""
+        rows = self.history()
+        if not rows:
             return False
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(self.store.history_path, target_path)
+        target_path.write_bytes(history_csv_bytes(rows))
         return True
 
     def history(self):

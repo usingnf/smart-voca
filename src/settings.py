@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 2026-10-21 - 클로드 스마트 보카 - 옵션(테마, 글꼴 크기, 시험·암기 기본값) 읽기·저장
+# 2026-11-25 - 클로드 스마트 보카 - 옵션(테마, 글꼴 크기, 시험·암기 기본값) 읽기·저장 (SQLite 저장)
 # 파일 위치: src/settings.py
 
 import json
 from dataclasses import asdict, dataclass, field, replace
 
 from config import (
-    BASE_DIR,
     EXAM_QUESTION_DEFAULT,
     EXAM_QUESTION_MAX,
     EXAM_QUESTION_MIN,
     EXAM_QUESTION_STEP,
     POS_DEFAULT_ORDER,
 )
+from database import transaction
 from quiz import DIRECTION_EN_TO_KO, DIRECTION_KO_TO_EN, DIRECTION_MIXED, KIND_CHOICE, KIND_OX, KIND_SHORT
-
-SETTINGS_PATH = BASE_DIR / "settings.json"
 
 THEME_LIGHT = "밝게"
 THEME_DARK = "어둡게"
@@ -38,7 +36,7 @@ def _known_subset(values, known, default):
 
 @dataclass
 class AppSettings:
-    """앱 전체 옵션. 계정과 무관하게 exe 옆 settings.json에 저장한다."""
+    """앱 전체 옵션. 계정과 무관하게 DB(app_settings 표)에 저장한다."""
 
     theme: str = THEME_LIGHT
     font_size: int = FONT_SIZE_DEFAULT
@@ -81,25 +79,31 @@ class AppSettings:
         )
 
 
-def load_settings(path=SETTINGS_PATH):
-    """설정 파일을 읽는다. 없거나 깨졌으면 기본값을 쓴다."""
-    if not path.exists():
+APP_SETTINGS_ROW_ID = 1
+
+
+def load_settings(db_path=None):
+    """옵션을 DB에서 읽는다. 저장된 옵션이 없거나 깨졌으면 기본값을 쓴다."""
+    with transaction(db_path) as connection:
+        row = connection.execute(
+            "SELECT settings_json FROM app_settings WHERE id = ?", (APP_SETTINGS_ROW_ID,),
+        ).fetchone()
+    if row is None:
         return AppSettings()
     try:
-        with path.open(encoding="utf-8") as json_file:
-            data = json.load(json_file)
+        data = json.loads(row["settings_json"])
         known = {key: value for key, value in data.items() if key in AppSettings.__dataclass_fields__}
         return AppSettings(**known).sanitized()
-    except (OSError, ValueError, TypeError):
-        from user_store import quarantine_file
-        quarantine_file(path)
+    except (ValueError, TypeError, AttributeError):
         return AppSettings()
 
 
-def save_settings(settings, path=SETTINGS_PATH):
-    """설정을 임시 파일에 쓴 뒤 교체한다."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_suffix(".json.tmp")
-    with temp_path.open("w", encoding="utf-8") as json_file:
-        json.dump(asdict(settings.sanitized()), json_file, ensure_ascii=False, indent=2)
-    temp_path.replace(path)
+def save_settings(settings, db_path=None):
+    """옵션을 DB에 저장한다. 값은 저장 전에 범위 검사를 거친다."""
+    settings_json = json.dumps(asdict(settings.sanitized()), ensure_ascii=False)
+    with transaction(db_path) as connection:
+        connection.execute(
+            "INSERT INTO app_settings (id, settings_json) VALUES (?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET settings_json = excluded.settings_json",
+            (APP_SETTINGS_ROW_ID, settings_json),
+        )

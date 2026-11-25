@@ -78,7 +78,7 @@ class OptionsPage(QWidget):
         self.online_check.toggled.connect(self.on_value_changed)
 
         title = page_title("옵션")
-        note = QLabel("바꾸면 바로 저장되고 적용됩니다. 옵션 파일은 프로그램 폴더의 settings.json입니다.")
+        note = QLabel("바꾸면 바로 저장되고 적용됩니다. 옵션은 프로그램 폴더의 voca.db에 저장됩니다.")
         note.setWordWrap(True)
 
         layout = QVBoxLayout(self)

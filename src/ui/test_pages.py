@@ -78,7 +78,7 @@ class TestPage(QWidget):
     """시험 설정 화면. 문제 수, 방향, 유형, 품사를 고른 뒤 시작한다.
 
     오답 재시험과 즐겨찾기만 출제도 여기서 한다.
-    고른 조건(유형·품사·즐겨찾기)은 preferences_changed로 알려서 settings.json에 저장되게 한다.
+    고른 조건(유형·품사·즐겨찾기)은 preferences_changed로 알려서 옵션(DB)에 저장되게 한다.
     """
 
     preferences_changed = pyqtSignal(object)
@@ -178,7 +178,7 @@ class TestPage(QWidget):
         self.emit_preferences()
 
     def emit_preferences(self, *_args):
-        """고른 시험 조건을 메인 창에 알린다. 메인 창이 settings.json에 저장한다."""
+        """고른 시험 조건을 메인 창에 알린다. 메인 창이 옵션(DB)에 저장한다."""
         self.preferences_changed.emit({
             "exam_kinds": self.selected_kinds(),
             "exam_pos_keys": self.selected_pos_keys(),

@@ -3,9 +3,11 @@
 # 2026-11-18 - 클로드 스마트 보카 - 웹 브라우저용 API와 화면 파일 제공 (업무 로직은 src 모듈을 그대로 사용)
 # 파일 위치: web/app.py
 
+import os
 import sys
 from dataclasses import asdict, replace
 from datetime import date
+from urllib.parse import quote
 from pathlib import Path
 from typing import List, Optional
 
@@ -17,14 +19,14 @@ if str(WEB_DIR) not in sys.path:
     sys.path.insert(0, str(WEB_DIR))
 
 from fastapi import FastAPI, HTTPException, Query  # noqa: E402
-from fastapi.responses import FileResponse  # noqa: E402
+from fastapi.responses import FileResponse, Response  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from starlette.middleware.trustedhost import TrustedHostMiddleware  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 from config import (  # noqa: E402
     APP_TITLE, BASE_DIR, DAILY_ASSIGNMENT_SIZE, EXAM_QUESTION_MAX, EXAM_QUESTION_MIN, EXAM_QUESTION_STEP,
-    PASS_RATE, POS_DEFAULT_ORDER, RECORD_ASSIGNMENT_TEST, RECORD_TEST, STATUS_PENDING, USERS_DIR, VOCA_PATH,
+    PASS_RATE, POS_DEFAULT_ORDER, RECORD_ASSIGNMENT_TEST, RECORD_TEST, STATUS_PENDING, VOCA_PATH,
 )
 from online_dict import ATTRIBUTION_TEXT, MSG_NO_KEY, OnlineDictError, search_english_translations  # noqa: E402
 from quiz import (  # noqa: E402
@@ -35,9 +37,9 @@ from report import (  # noqa: E402
     PERIOD_CUSTOM, PERIOD_OPTIONS, build_summary, daily_accuracy, period_range,
 )
 from session import UserSession  # noqa: E402
-from settings import SETTINGS_PATH, THEME_CHOICES, load_settings, save_settings  # noqa: E402
+from settings import THEME_CHOICES, load_settings, save_settings  # noqa: E402
 from timeutil import kst_today  # noqa: E402
-from user_store import UserStore, list_user_keys, normalize_username  # noqa: E402
+from user_store import UserStore, history_csv_bytes, list_user_keys, normalize_username, user_exists  # noqa: E402
 from vocab import (  # noqa: E402
     POS_LABELS, WORD_PATTERN, Vocabulary, filter_by_pos, search_by_english, search_by_meaning,
 )
@@ -47,8 +49,20 @@ QUIZ_KINDS = [KIND_SHORT, KIND_CHOICE, KIND_OX]
 QUIZ_DIRECTIONS = [DIRECTION_EN_TO_KO, DIRECTION_KO_TO_EN, DIRECTION_MIXED]
 SEARCH_LIMIT = 20
 MSG_OFFLINE_OFF = "온라인 검색이 꺼져 있습니다. 옵션에서 켤 수 있습니다."
-# 허용할 호스트 이름. testserver는 자동 시험(TestClient)용이다.
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "testserver"]
+
+
+def load_allowed_hosts():
+    """허용할 Host 이름 목록. testserver는 자동 시험(TestClient)용이다.
+
+    서버 배포 시에는 환경 변수 ALLOWED_HOSTS(쉼표로 구분)에 접속 주소를 더한다.
+    예: ALLOWED_HOSTS=example.school.ac.kr
+    """
+    base_hosts = ["127.0.0.1", "localhost", "testserver"]
+    extra_hosts = [host.strip() for host in os.environ.get("ALLOWED_HOSTS", "").split(",") if host.strip()]
+    return base_hosts + extra_hosts
+
+
+ALLOWED_HOSTS = load_allowed_hosts()
 
 
 # ----- 요청 형식 -----
@@ -122,7 +136,7 @@ def open_session(vocabulary, raw_username):
     key = normalize_username(raw_username)
     if key is None:
         raise HTTPException(400, "사용자명은 영문·숫자·한글 1~20자로 입력하세요.")
-    if not (USERS_DIR / key).is_dir():
+    if not user_exists(key):
         raise HTTPException(404, "계정을 찾을 수 없습니다. 계정을 먼저 만드세요.")
     return UserSession(key, key, vocabulary)
 
@@ -212,14 +226,14 @@ def create_app():
 
     @app.get("/api/users")
     def list_users():
-        return [{"key": key} for key in list_user_keys(USERS_DIR)]
+        return [{"key": key} for key in list_user_keys()]
 
     @app.post("/api/users")
     def create_user(body: UserCreate):
         key = normalize_username(body.name)
         if key is None:
             raise HTTPException(400, "사용자명은 영문·숫자·한글 1~20자로 입력하세요.")
-        existed = (USERS_DIR / key).is_dir()
+        existed = user_exists(key)
         UserStore(key).create()
         return {"key": key, "created": not existed}
 
@@ -303,7 +317,7 @@ def create_app():
     @app.get("/api/online-search")
     def online_search(username: str, q: str):
         open_session(vocabulary, username)
-        settings = load_settings(SETTINGS_PATH)
+        settings = load_settings()
         if not settings.online_lookup_enabled:
             return {"enabled": False, "results": [], "message": MSG_OFFLINE_OFF}
         query = q.strip()
@@ -458,10 +472,12 @@ def create_app():
     @app.get("/api/history/export")
     def export_history(username: str):
         session = open_session(vocabulary, username)
-        path = session.store.history_path
-        if not path.exists():
+        rows = session.history()
+        if not rows:
             raise HTTPException(404, "저장된 이력이 없습니다.")
-        return FileResponse(path, filename=f"{session.username_key}_history.csv", media_type="text/csv")
+        filename = f"{session.username_key}_history.csv"
+        headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
+        return Response(content=history_csv_bytes(rows), media_type="text/csv", headers=headers)
 
     @app.get("/api/report")
     def get_report(
@@ -506,17 +522,17 @@ def create_app():
 
     @app.get("/api/settings")
     def get_settings():
-        settings = load_settings(SETTINGS_PATH)
+        settings = load_settings()
         data = asdict(settings)
         data["krdict_api_key_set"] = bool(data.pop("krdict_api_key"))
         return data
 
     @app.put("/api/settings")
     def update_settings(body: SettingsUpdate):
-        current = load_settings(SETTINGS_PATH)
+        current = load_settings()
         updates = body.model_dump(exclude_none=True)
         settings = replace(current, **updates).sanitized() if updates else current
-        save_settings(settings, SETTINGS_PATH)
+        save_settings(settings)
         return {"ok": True}
 
     app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
