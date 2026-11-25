@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
     user_key TEXT PRIMARY KEY,
     created_at TEXT NOT NULL,
     password_hash TEXT,
-    is_public INTEGER NOT NULL DEFAULT 0
+    is_public INTEGER NOT NULL DEFAULT 0,
+    is_guest INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS user_state (
     user_key TEXT PRIMARY KEY REFERENCES users(user_key) ON DELETE CASCADE,
@@ -82,6 +83,8 @@ def _add_missing_columns(connection):
         connection.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
     if "is_public" not in user_columns:
         connection.execute("ALTER TABLE users ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0")
+    if "is_guest" not in user_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN is_guest INTEGER NOT NULL DEFAULT 0")
 
 
 def ensure_schema(db_path=None):

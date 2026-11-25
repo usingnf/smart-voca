@@ -42,7 +42,17 @@
       }
     });
 
-    SV_.render([
+    async function startGuest() {
+      try {
+        const data = await SV_.api("/api/auth/guest", { method: "POST" });
+        SV_.afterLogin(data);
+      } catch (error) {
+        message.className = "notice error";
+        message.textContent = error.message;
+      }
+    }
+
+    SV_.render(SV_.el("div", { class: "auth-panel" }, [
       SV_.el("h2", { text: "로그인" }),
       SV_.card([
         SV_.el("p", {
@@ -57,7 +67,15 @@
           SV_.button("로그인", () => submit("/api/auth/login"), "primary"),
         ]),
       ]),
-    ]);
+      SV_.card([
+        SV_.el("h3", { text: "게스트로 시작" }),
+        SV_.el("p", {
+          class: "muted",
+          text: "가입 없이 임시 계정으로 바로 써 볼 수 있습니다. 게스트 계정은 이 브라우저에만 연결되며, 로그아웃하면 다시 들어갈 수 없습니다. 비공개이고 다른 계정 보기에 나오지 않습니다.",
+        }),
+        SV_.el("div", { class: "row end" }, [SV_.button("게스트로 시작", startGuest, "ghost")]),
+      ]),
+    ]));
     nameInput.focus();
   };
 })();

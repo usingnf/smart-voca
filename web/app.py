@@ -41,6 +41,8 @@ from sampling import pick_weighted_words  # noqa: E402
 from session import UserSession  # noqa: E402
 from settings import THEME_CHOICES, load_settings, save_settings  # noqa: E402
 from timeutil import kst_today  # noqa: E402
+import secrets  # noqa: E402
+
 from user_store import (  # noqa: E402
     UserStore, history_csv_bytes, list_public_user_keys, normalize_username, user_exists,
 )
@@ -157,8 +159,10 @@ PUBLIC_API_ROUTES = {
     ("POST", "/api/auth/register"),
     ("POST", "/api/auth/login"),
     ("POST", "/api/auth/logout"),
+    ("POST", "/api/auth/guest"),
     ("GET", "/api/auth/me"),
 }
+GUEST_PREFIX = "guest"
 MSG_LOGIN_FAILED = "사용자명 또는 비밀번호가 맞지 않습니다."
 MSG_LEGACY_NO_PASSWORD = "이 계정은 아직 비밀번호가 없습니다. 가입 화면에서 같은 이름으로 비밀번호를 설정하세요."
 
@@ -285,6 +289,8 @@ def create_app():
         if problem:
             raise HTTPException(400, problem)
         store = UserStore(key)
+        if user_exists(key) and store.is_guest():
+            raise HTTPException(409, "이 이름은 게스트 계정이라 가입할 수 없습니다. 다른 이름을 쓰세요.")
         if user_exists(key) and store.get_password_hash():
             raise HTTPException(409, "이미 있는 계정입니다. 로그인하세요.")
         # 비밀번호가 없는 기존 계정이면 같은 이름으로 비밀번호를 설정한다 (명세서 3.22, 5-7)
@@ -299,6 +305,8 @@ def create_app():
         if key is None or not user_exists(key):
             raise HTTPException(401, MSG_LOGIN_FAILED)
         store = UserStore(key)
+        if store.is_guest():
+            raise HTTPException(401, MSG_LOGIN_FAILED)
         stored = store.get_password_hash()
         if not stored:
             raise HTTPException(409, MSG_LEGACY_NO_PASSWORD)
@@ -306,6 +314,18 @@ def create_app():
             raise HTTPException(401, MSG_LOGIN_FAILED)
         set_session_cookie(response, key)
         return {"username": key, "is_public": store.is_public()}
+
+    @app.post("/api/auth/guest")
+    def guest_login(response: Response):
+        # 게스트 계정은 비밀번호 없이 임시로 만든다. 이름은 서버가 정하고, 이 브라우저의 쿠키에만 연결된다.
+        key = GUEST_PREFIX + secrets.token_hex(4)
+        while user_exists(key):
+            key = GUEST_PREFIX + secrets.token_hex(4)
+        store = UserStore(key)
+        store.create()
+        store.set_guest()
+        set_session_cookie(response, key)
+        return {"username": key, "is_public": False, "is_guest": True}
 
     @app.post("/api/auth/logout")
     def logout(response: Response):
@@ -317,12 +337,16 @@ def create_app():
         key = read_session_token(request.cookies.get(SESSION_COOKIE_NAME), secret)
         if key is None or not user_exists(key):
             raise HTTPException(401, "로그인이 필요합니다.")
-        return {"username": key, "is_public": UserStore(key).is_public()}
+        store = UserStore(key)
+        return {"username": key, "is_public": store.is_public(), "is_guest": store.is_guest()}
 
     @app.put("/api/auth/visibility")
     def set_visibility(body: VisibilityUpdate):
         key = CURRENT_USER.get()
-        UserStore(key).set_public(body.is_public)
+        store = UserStore(key)
+        if store.is_guest():
+            raise HTTPException(403, "게스트 계정은 공개할 수 없습니다.")
+        store.set_public(body.is_public)
         return {"is_public": body.is_public}
 
     # ----- 다른 계정 보기 (읽기 전용, 공개 계정만) -----

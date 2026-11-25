@@ -24,22 +24,23 @@
   // 상단 표시줄: 로그인한 계정과 로그아웃 단추 (로그인 전에는 안내 문구만)
   SV_.updateWho = function () {
     const who = document.getElementById("who");
-    const menu = document.getElementById("menu");
     if (SV_.state.username) {
+      const label = SV_.state.isGuest ? "게스트 계정" : `${SV_.state.username} 로 로그인 중`;
       who.replaceChildren(
-        SV_.el("span", { text: `${SV_.state.username} 로 로그인 중` }),
+        SV_.el("span", { text: label }),
         SV_.button("로그아웃", () => SV_.logout(), "ghost"),
       );
     } else {
       who.textContent = "로그인이 필요합니다";
     }
-    menu.style.display = SV_.state.username ? "" : "none";
+    document.querySelector(".layout").classList.toggle("signed-out", !SV_.state.username);
   };
 
   // 로그인 성공 뒤: 계정 정보를 저장하고 암기 화면으로 간다.
   SV_.afterLogin = function (data) {
     SV_.state.username = data.username;
     SV_.state.isPublic = Boolean(data.is_public);
+    SV_.state.isGuest = Boolean(data.is_guest);
     SV_.updateWho();
     location.hash = "#memorize";
   };
@@ -48,6 +49,7 @@
   SV_.signedOut = function () {
     SV_.state.username = null;
     SV_.state.isPublic = false;
+    SV_.state.isGuest = false;
     SV_.updateWho();
     location.hash = "#login";
   };
@@ -138,6 +140,7 @@
       const me = await SV_.api("/api/auth/me");
       SV_.state.username = me.username;
       SV_.state.isPublic = Boolean(me.is_public);
+      SV_.state.isGuest = Boolean(me.is_guest);
     } catch (error) {
       SV_.state.username = null;
     }

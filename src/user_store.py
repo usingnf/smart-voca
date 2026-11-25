@@ -82,6 +82,16 @@ class UserStore:
                 "SELECT is_public FROM users WHERE user_key = ?", (self.key,)).fetchone()
         return bool(row and row["is_public"])
 
+    def is_guest(self):
+        with transaction(self.db_path) as connection:
+            row = connection.execute(
+                "SELECT is_guest FROM users WHERE user_key = ?", (self.key,)).fetchone()
+        return bool(row and row["is_guest"])
+
+    def set_guest(self):
+        with transaction(self.db_path) as connection:
+            connection.execute("UPDATE users SET is_guest = 1 WHERE user_key = ?", (self.key,))
+
     def set_public(self, value):
         with transaction(self.db_path) as connection:
             connection.execute(

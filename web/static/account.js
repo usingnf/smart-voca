@@ -64,8 +64,10 @@
     SV_.render([
       SV_.el("h2", { text: "내 계정" }),
       SV_.card([
-        SV_.el("p", { text: `로그인한 계정: ${SV_.state.username}` }),
-        SV_.el("label", { class: "check" }, [visibility, " 다른 계정 보기에 공개 (이름과 진척 통계가 다른 사용자에게 보입니다)"]),
+        SV_.el("p", { text: `로그인한 계정: ${SV_.state.username}${SV_.state.isGuest ? " (게스트)" : ""}` }),
+        SV_.state.isGuest
+          ? SV_.el("p", { class: "muted", text: "게스트 계정은 공개할 수 없습니다. 로그아웃하면 다시 들어갈 수 없습니다." })
+          : SV_.el("label", { class: "check" }, [visibility, " 다른 계정 보기에 공개 (이름과 진척 통계가 다른 사용자에게 보입니다)"]),
         message,
       ]),
       SV_.card([

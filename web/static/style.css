@@ -79,6 +79,11 @@ p { margin: 6px 0; }
 .menu-item.active { background: rgba(255, 255, 255, 0.08); border-left-color: var(--menu-active); font-weight: 700; }
 
 .view { padding: 24px; max-width: 920px; width: 100%; min-width: 0; }
+/* 로그인 전: 메뉴를 숨기고 본문을 한 열로 쓴다 (메뉴 열에 본문이 갇히지 않도록) */
+.layout.signed-out { grid-template-columns: minmax(0, 1fr); }
+.layout.signed-out .menu { display: none; }
+.auth-panel { max-width: 480px; width: 100%; }
+.auth-panel .card + .card { margin-top: 16px; }
 .footer {
   padding: 10px 20px; color: var(--muted); font-size: 0.85em; border-top: 1px solid var(--line);
 }

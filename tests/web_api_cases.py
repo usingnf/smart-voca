@@ -95,6 +95,25 @@ class WebApiCaseTests(unittest.TestCase):
         self.assertNotIn(self.user, listed)
         self.assertEqual(self.client.get(f"/api/community/users/{self.user}").status_code, 404)
 
+    def test_guest_login_creates_private_account(self):
+        self.client.cookies.clear()
+        guest = self.client.post("/api/auth/guest").json()
+        self.assertTrue(guest["username"].startswith("guest"))
+        self.assertTrue(guest["is_guest"])
+        self.assertEqual(self.client.get("/api/auth/me").json()["username"], guest["username"])
+        self.assertEqual(self.client.put("/api/auth/visibility", json={"is_public": True}).status_code, 403)
+        # 게스트 이름으로 비밀번호 로그인과 가입은 할 수 없다
+        self.assertEqual(self.login_as(guest["username"], "password-1").status_code, 401)
+        self.client.cookies.clear()
+        self.assertEqual(self.register(guest["username"], "password-1").status_code, 409)
+
+    def test_guest_accounts_are_not_listed_publicly(self):
+        self.client.cookies.clear()
+        guest = self.client.post("/api/auth/guest").json()["username"]
+        self.register("viewer" + self.user[-6:], "password-2")
+        listed = [item["username"] for item in self.client.get("/api/community/users").json()]
+        self.assertNotIn(guest, listed)
+
     def test_public_account_is_visible_read_only(self):
         self.client.put("/api/auth/visibility", json={"is_public": True})
         self.register("viewer" + self.user[-6:], "password-2")
