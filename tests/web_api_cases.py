@@ -29,9 +29,18 @@ class WebApiCaseTests(unittest.TestCase):
         cls.client = TestClient(create_app())
 
     def setUp(self):
-        # 테스트마다 계정을 따로 만들어 서로의 과제·기록이 섞이지 않게 한다.
+        # 테스트마다 계정을 따로 만들어 서로의 과제·기록이 섞이지 않게 한다. 가입하면 그 계정으로 로그인된다.
         self.user = f"t{uuid.uuid4().hex[:10]}"
-        self.client.post("/api/users", json={"name": self.user})
+        self.password = "password-1"
+        self.client.cookies.clear()
+        self.assertEqual(self.register(self.user, self.password).status_code, 200)
+
+    def register(self, name, password):
+        return self.client.post("/api/auth/register", json={"username": name, "password": password})
+
+    def login_as(self, name, password):
+        self.client.cookies.clear()
+        return self.client.post("/api/auth/login", json={"username": name, "password": password})
 
     def params(self, **extra):
         return {"username": self.user, **extra}
@@ -59,13 +68,45 @@ class WebApiCaseTests(unittest.TestCase):
         response = self.client.get("/api/history", params={"username": "../x"})
         self.assertEqual(response.status_code, 400)
 
-    def test_unknown_account_is_not_created_implicitly(self):
-        response = self.client.get("/api/history", params={"username": "nobody"})
-        self.assertEqual(response.status_code, 404)
+    def test_anonymous_request_needs_login(self):
+        self.client.cookies.clear()
+        response = self.client.get("/api/history", params={"username": self.user})
+        self.assertEqual(response.status_code, 401)
 
-    def test_account_list_includes_created_user(self):
-        keys = [item["key"] for item in self.client.get("/api/users").json()]
-        self.assertIn(self.user, keys)
+    def test_other_account_name_is_refused(self):
+        response = self.client.get("/api/history", params={"username": "nobody"})
+        self.assertEqual(response.status_code, 403)
+
+    def test_login_logout_cycle(self):
+        self.assertEqual(self.login_as(self.user, "wrong-password").status_code, 401)
+        self.assertEqual(self.login_as(self.user, self.password).status_code, 200)
+        self.assertEqual(self.client.get("/api/auth/me").json()["username"], self.user)
+        self.client.post("/api/auth/logout")
+        self.assertEqual(self.client.get("/api/auth/me").status_code, 401)
+
+    def test_duplicate_register_and_short_password_are_rejected(self):
+        self.client.cookies.clear()
+        self.assertEqual(self.register(self.user, "another-pw").status_code, 409)
+        self.assertEqual(self.register("shortpw_user", "short").status_code, 400)
+
+    def test_private_account_is_hidden_from_others(self):
+        self.register("viewer" + self.user[-6:], "password-2")
+        listed = [item["username"] for item in self.client.get("/api/community/users").json()]
+        self.assertNotIn(self.user, listed)
+        self.assertEqual(self.client.get(f"/api/community/users/{self.user}").status_code, 404)
+
+    def test_public_account_is_visible_read_only(self):
+        self.client.put("/api/auth/visibility", json={"is_public": True})
+        self.register("viewer" + self.user[-6:], "password-2")
+        listed = self.client.get("/api/community/users").json()
+        mine = [item for item in listed if item["username"] == self.user]
+        self.assertEqual(len(mine), 1)
+        self.assertFalse(mine[0]["is_me"])
+        detail = self.client.get(f"/api/community/users/{self.user}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertTrue({"day", "memorized", "total", "test_accuracy"} <= set(detail.json()))
+        self.assertEqual(self.client.delete(f"/api/community/users/{self.user}").status_code, 405)
+        self.assertNotIn("meanings", str(detail.json()))
 
     # ----- 단어 -----
 

@@ -46,6 +46,14 @@ def list_user_keys(db_path=None):
     return [row["user_key"] for row in rows]
 
 
+def list_public_user_keys(db_path=None):
+    """공개 설정을 켠 계정 키 목록 (정렬)."""
+    with transaction(db_path) as connection:
+        rows = connection.execute(
+            "SELECT user_key FROM users WHERE is_public = 1 ORDER BY user_key").fetchall()
+    return [row["user_key"] for row in rows]
+
+
 class UserStore:
     """한 사용자의 데이터를 다룬다. db_path를 바꾸면 테스트용 임시 DB를 쓸 수 있다."""
 
@@ -55,6 +63,29 @@ class UserStore:
 
     def exists(self):
         return user_exists(self.key, self.db_path)
+
+    def get_password_hash(self):
+        """저장된 비밀번호 해시. 없는 계정(또는 비밀번호를 아직 정하지 않은 기존 계정)이면 None."""
+        with transaction(self.db_path) as connection:
+            row = connection.execute(
+                "SELECT password_hash FROM users WHERE user_key = ?", (self.key,)).fetchone()
+        return row["password_hash"] if row else None
+
+    def set_password_hash(self, password_hash):
+        with transaction(self.db_path) as connection:
+            connection.execute(
+                "UPDATE users SET password_hash = ? WHERE user_key = ?", (password_hash, self.key))
+
+    def is_public(self):
+        with transaction(self.db_path) as connection:
+            row = connection.execute(
+                "SELECT is_public FROM users WHERE user_key = ?", (self.key,)).fetchone()
+        return bool(row and row["is_public"])
+
+    def set_public(self, value):
+        with transaction(self.db_path) as connection:
+            connection.execute(
+                "UPDATE users SET is_public = ? WHERE user_key = ?", (1 if value else 0, self.key))
 
     def create(self):
         """계정을 만든다. 이미 있으면 아무것도 하지 않는다."""

@@ -25,6 +25,10 @@ SV.api = async function (path, options = {}) {
       data = text;
     }
   }
+  // 로그인이 끊기면 로그인 화면으로 보낸다. 인증 API의 401(비밀번호 틀림 등)은 화면에서 안내한다.
+  if (response.status === 401 && !path.startsWith("/api/auth/") && SV.onUnauthorized) {
+    SV.onUnauthorized();
+  }
   if (!response.ok) {
     const detail = data && data.detail;
     let message = "요청을 처리하지 못했습니다.";

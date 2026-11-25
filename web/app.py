@@ -18,7 +18,7 @@ if str(SRC_DIR) not in sys.path:
 if str(WEB_DIR) not in sys.path:
     sys.path.insert(0, str(WEB_DIR))
 
-from fastapi import FastAPI, HTTPException, Query  # noqa: E402
+from fastapi import Depends, FastAPI, HTTPException, Query, Request  # noqa: E402
 from fastapi.responses import FileResponse, Response  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from starlette.middleware.trustedhost import TrustedHostMiddleware  # noqa: E402
@@ -41,7 +41,13 @@ from sampling import pick_weighted_words  # noqa: E402
 from session import UserSession  # noqa: E402
 from settings import THEME_CHOICES, load_settings, save_settings  # noqa: E402
 from timeutil import kst_today  # noqa: E402
-from user_store import UserStore, history_csv_bytes, list_user_keys, normalize_username, user_exists  # noqa: E402
+from user_store import (  # noqa: E402
+    UserStore, history_csv_bytes, list_public_user_keys, normalize_username, user_exists,
+)
+from auth import (  # noqa: E402
+    CURRENT_USER, MAX_PASSWORD_LENGTH, SESSION_COOKIE_NAME, SESSION_SECONDS, hash_password,
+    load_secret_key, make_session_token, password_problem, read_session_token, verify_password,
+)
 from vocab import (  # noqa: E402
     POS_LABELS, WORD_PATTERN, Vocabulary, filter_by_pos, search_by_english, search_by_meaning,
 )
@@ -70,8 +76,13 @@ ALLOWED_HOSTS = load_allowed_hosts()
 
 # ----- 요청 형식 -----
 
-class UserCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=40)
+class AuthBody(BaseModel):
+    username: str = Field(min_length=1, max_length=40)
+    password: str = Field(min_length=1, max_length=MAX_PASSWORD_LENGTH)
+
+
+class VisibilityUpdate(BaseModel):
+    is_public: bool
 
 
 class WordCreate(BaseModel):
@@ -139,11 +150,26 @@ class SettingsUpdate(BaseModel):
 
 # ----- 공통 도움 함수 -----
 
+# 로그인이 필요 없는 웹 API (그 밖의 /api/ 경로는 모두 로그인해야 한다)
+PUBLIC_API_ROUTES = {
+    ("GET", "/api/meta"),
+    ("GET", "/api/settings"),
+    ("POST", "/api/auth/register"),
+    ("POST", "/api/auth/login"),
+    ("POST", "/api/auth/logout"),
+    ("GET", "/api/auth/me"),
+}
+MSG_LOGIN_FAILED = "사용자명 또는 비밀번호가 맞지 않습니다."
+MSG_LEGACY_NO_PASSWORD = "이 계정은 아직 비밀번호가 없습니다. 가입 화면에서 같은 이름으로 비밀번호를 설정하세요."
+
+
 def open_session(vocabulary, raw_username):
-    """계정 이름을 확인하고 기존 계정의 세션을 연다. 계정을 새로 만들지는 않는다."""
+    """로그인한 본인 계정의 세션을 연다. 다른 계정 이름이면 403이다. 계정을 새로 만들지는 않는다."""
     key = normalize_username(raw_username)
     if key is None:
         raise HTTPException(400, "사용자명은 영문·숫자·한글 1~20자로 입력하세요.")
+    if CURRENT_USER.get() != key:
+        raise HTTPException(403, "로그인한 계정의 기능만 쓸 수 있습니다.")
     if not user_exists(key):
         raise HTTPException(404, "계정을 찾을 수 없습니다. 계정을 먼저 만드세요.")
     return UserSession(key, key, vocabulary)
@@ -202,7 +228,20 @@ def create_app():
         raise RuntimeError(f"단어 파일을 찾을 수 없습니다: {VOCA_PATH}")
     vocabulary = Vocabulary.load(VOCA_PATH)
     quizzes = QuizRegistry()
-    app = FastAPI(title=APP_TITLE)
+    secret = load_secret_key()
+
+    async def require_login(request: Request):
+        """/api/ 요청마다 세션 쿠키를 확인한다. 통과하면 로그인 계정을 CURRENT_USER에 넣는다."""
+        if not request.url.path.startswith("/api/"):
+            return
+        if (request.method, request.url.path) in PUBLIC_API_ROUTES:
+            return
+        key = read_session_token(request.cookies.get(SESSION_COOKIE_NAME), secret)
+        if key is None or not user_exists(key):
+            raise HTTPException(401, "로그인이 필요합니다.")
+        CURRENT_USER.set(key)
+
+    app = FastAPI(title=APP_TITLE, dependencies=[Depends(require_login)])
     # 이 PC의 주소로 온 요청만 받는다. 다른 웹페이지가 DNS 재연결로 로컬 서버를 부르는 것을 막는다.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
@@ -230,20 +269,92 @@ def create_app():
             "attribution": ATTRIBUTION_TEXT,
         }
 
-    # ----- 계정 -----
+    # ----- 로그인과 계정 -----
 
-    @app.get("/api/users")
-    def list_users():
-        return [{"key": key} for key in list_user_keys()]
+    def set_session_cookie(response, key):
+        token = make_session_token(key, secret)
+        response.set_cookie(SESSION_COOKIE_NAME, token, max_age=SESSION_SECONDS,
+                            httponly=True, samesite="lax", path="/")
 
-    @app.post("/api/users")
-    def create_user(body: UserCreate):
-        key = normalize_username(body.name)
+    @app.post("/api/auth/register")
+    def register(body: AuthBody, response: Response):
+        key = normalize_username(body.username)
         if key is None:
             raise HTTPException(400, "사용자명은 영문·숫자·한글 1~20자로 입력하세요.")
-        existed = user_exists(key)
-        UserStore(key).create()
-        return {"key": key, "created": not existed}
+        problem = password_problem(body.password)
+        if problem:
+            raise HTTPException(400, problem)
+        store = UserStore(key)
+        if user_exists(key) and store.get_password_hash():
+            raise HTTPException(409, "이미 있는 계정입니다. 로그인하세요.")
+        # 비밀번호가 없는 기존 계정이면 같은 이름으로 비밀번호를 설정한다 (명세서 3.22, 5-7)
+        store.create()
+        store.set_password_hash(hash_password(body.password))
+        set_session_cookie(response, key)
+        return {"username": key, "is_public": store.is_public()}
+
+    @app.post("/api/auth/login")
+    def login(body: AuthBody, response: Response):
+        key = normalize_username(body.username)
+        if key is None or not user_exists(key):
+            raise HTTPException(401, MSG_LOGIN_FAILED)
+        store = UserStore(key)
+        stored = store.get_password_hash()
+        if not stored:
+            raise HTTPException(409, MSG_LEGACY_NO_PASSWORD)
+        if not verify_password(body.password, stored):
+            raise HTTPException(401, MSG_LOGIN_FAILED)
+        set_session_cookie(response, key)
+        return {"username": key, "is_public": store.is_public()}
+
+    @app.post("/api/auth/logout")
+    def logout(response: Response):
+        response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+        return {"ok": True}
+
+    @app.get("/api/auth/me")
+    def me(request: Request):
+        key = read_session_token(request.cookies.get(SESSION_COOKIE_NAME), secret)
+        if key is None or not user_exists(key):
+            raise HTTPException(401, "로그인이 필요합니다.")
+        return {"username": key, "is_public": UserStore(key).is_public()}
+
+    @app.put("/api/auth/visibility")
+    def set_visibility(body: VisibilityUpdate):
+        key = CURRENT_USER.get()
+        UserStore(key).set_public(body.is_public)
+        return {"is_public": body.is_public}
+
+    # ----- 다른 계정 보기 (읽기 전용, 공개 계정만) -----
+
+    def community_summary(key):
+        """공개 계정의 진척 통계. 단어 목록이나 이력 행은 담지 않는다 (VOCA-FR-051, 053)."""
+        store = UserStore(key)
+        state = store.load_state()
+        pool = vocabulary.merged(store.load_custom_words())
+        memorized = {word for words in state["memorized"].values() for word in words}
+        summary = build_summary(store.read_history(), state["assignments"], None, None)
+        test_total = summary["test_total"]
+        return {
+            "username": key,
+            "day": len(state["assignments"]),
+            "memorized": len(memorized & set(pool)),
+            "total": len(pool),
+            "completion_rate": summary["completion_rate"],
+            "test_accuracy": summary["test_correct"] / test_total if test_total else None,
+        }
+
+    @app.get("/api/community/users")
+    def community_users():
+        viewer = CURRENT_USER.get()
+        return [{**community_summary(key), "is_me": key == viewer} for key in list_public_user_keys()]
+
+    @app.get("/api/community/users/{key}")
+    def community_user(key: str):
+        target = normalize_username(key)
+        if target is None or target not in list_public_user_keys():
+            raise HTTPException(404, "공개된 계정을 찾을 수 없습니다.")
+        return {**community_summary(target), "is_me": target == CURRENT_USER.get()}
 
     @app.delete("/api/users/{key}")
     def delete_user(key: str):
@@ -450,6 +561,8 @@ def create_app():
         record = quizzes.get(quiz_id)
         if record is None:
             return {"ok": True}
+        if record.username != CURRENT_USER.get():
+            raise HTTPException(403, "로그인한 계정의 시험만 끝낼 수 있습니다.")
         if record.mode == MODE_ASSIGNMENT:
             session = open_session(vocabulary, record.username)
             session.abandon_assignment(session.today_assignment())

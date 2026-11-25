@@ -1,4 +1,4 @@
-// 2026-11-18 - 클로드 스마트 보카 - 웹 화면 시작과 메뉴 이동 (해시 기준 라우팅, 계정 선택 확인)
+// 2026-11-26 - 클로드 스마트 보카 - 웹 화면 시작과 메뉴 이동 (해시 기준 라우팅, 로그인 확인, 로그인 전에는 메뉴 숨김)
 // 파일 위치: web/static/app.js
 
 "use strict";
@@ -16,13 +16,56 @@
     { section: "관리" },
     { key: "add", label: "＋  단어 추가" },
     { key: "report", label: "▤  보고서" },
+    { key: "community", label: "◎  다른 계정 보기" },
     { key: "options", label: "⚙  옵션" },
-    { key: "account", label: "◉  계정 관리" },
+    { key: "account", label: "◉  내 계정" },
   ];
 
+  // 상단 표시줄: 로그인한 계정과 로그아웃 단추 (로그인 전에는 안내 문구만)
   SV_.updateWho = function () {
     const who = document.getElementById("who");
-    who.textContent = SV_.state.username ? `사용 중인 계정: ${SV_.state.username}` : "계정을 선택하세요";
+    const menu = document.getElementById("menu");
+    if (SV_.state.username) {
+      who.replaceChildren(
+        SV_.el("span", { text: `${SV_.state.username} 로 로그인 중` }),
+        SV_.button("로그아웃", () => SV_.logout(), "ghost"),
+      );
+    } else {
+      who.textContent = "로그인이 필요합니다";
+    }
+    menu.style.display = SV_.state.username ? "" : "none";
+  };
+
+  // 로그인 성공 뒤: 계정 정보를 저장하고 암기 화면으로 간다.
+  SV_.afterLogin = function (data) {
+    SV_.state.username = data.username;
+    SV_.state.isPublic = Boolean(data.is_public);
+    SV_.updateWho();
+    location.hash = "#memorize";
+  };
+
+  // 로그아웃하거나 계정을 지운 뒤: 로그인 화면으로 간다.
+  SV_.signedOut = function () {
+    SV_.state.username = null;
+    SV_.state.isPublic = false;
+    SV_.updateWho();
+    location.hash = "#login";
+  };
+
+  SV_.logout = async function () {
+    try {
+      await SV_.api("/api/auth/logout", { method: "POST" });
+    } catch (error) {
+      // 쿠키를 지우는 데 실패해도 화면에서는 로그아웃 상태로 본다.
+    }
+    SV_.signedOut();
+  };
+
+  // 세션이 끝나면 (다른 탭에서 로그아웃하거나 키가 바뀐 경우) 로그인 화면으로 보낸다.
+  SV_.onUnauthorized = function () {
+    SV_.state.username = null;
+    SV_.updateWho();
+    location.hash = "#login";
   };
 
   function buildMenu() {
@@ -42,7 +85,7 @@
   }
 
   function currentPage() {
-    return location.hash.replace("#", "") || (SV_.state.username ? "memorize" : "account");
+    return location.hash.replace("#", "") || (SV_.state.username ? "memorize" : "login");
   }
 
   async function route() {
@@ -52,21 +95,27 @@
       window.speechSynthesis.cancel();
     }
     const page = currentPage();
-    highlightMenu(page);
 
-    if (!SV_.state.username && page !== "account") {
-      SV_.render([
-        SV_.card([
-          SV_.el("h2", { text: "계정을 먼저 선택하세요" }),
-          SV_.el("p", { text: "기존 계정을 고르거나 새 계정을 만들면 학습 기록이 그 계정에 저장됩니다." }),
-          SV_.el("div", { class: "row end" }, [SV_.button("계정 선택하러 가기", () => { location.hash = "#account"; }, "primary")]),
-        ]),
-      ]);
+    // 로그인 화면은 메뉴 없이 보여 준다. 이미 로그인했다면 암기 화면으로 보낸다.
+    if (page === "login") {
+      highlightMenu("");
+      if (SV_.state.username) {
+        location.hash = "#memorize";
+        return;
+      }
+      SV_.pages.login();
       return;
     }
+    // 로그인하지 않았으면 로그인 화면으로 보낸다 (명세서 3.22).
+    if (!SV_.state.username) {
+      location.hash = "#login";
+      return;
+    }
+
+    highlightMenu(page);
     const handler = SV_.pages[page];
     if (!handler) {
-      location.hash = SV_.state.username ? "#memorize" : "#account";
+      location.hash = "#memorize";
       return;
     }
     try {
@@ -76,7 +125,6 @@
     }
   }
 
-  // 명세서 3.11: 마지막 계정을 기억하지 않는다. 화면을 새로 열면 계정을 다시 고른다.
   async function init() {
     const [meta, settings] = await Promise.all([SV_.api("/api/meta"), SV_.api("/api/settings")]);
     SV_.state.meta = meta;
@@ -84,10 +132,19 @@
     document.getElementById("footer").textContent =
       `데이터 폴더: ${meta.data_dir} · 단어 ${meta.word_count}개 · 이 PC에서만 접속할 수 있습니다`;
     buildMenu();
+
+    // 화면을 열면 세션 쿠키로 로그인 상태를 확인한다. 로그인하지 않았으면 401이 와서 로그인 화면으로 간다.
+    try {
+      const me = await SV_.api("/api/auth/me");
+      SV_.state.username = me.username;
+      SV_.state.isPublic = Boolean(me.is_public);
+    } catch (error) {
+      SV_.state.username = null;
+    }
     SV_.updateWho();
     window.addEventListener("hashchange", route);
     if (!location.hash) {
-      location.hash = SV_.state.username ? "#memorize" : "#account";
+      location.hash = SV_.state.username ? "#memorize" : "#login";
     }
     await route();
   }
