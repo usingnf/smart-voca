@@ -228,5 +228,34 @@ class WebApiCaseTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/words/lantern", params=self.params()).status_code, 200)
 
 
+    # ----- 가져오기·진도·가중 출제 (v1.2) -----
+
+    def test_import_words_adds_new_and_skips_existing(self):
+        # 머리글 BOM, 기존 단어(abacus), 같은 파일 안 중복(plimbox), 형식 오류(숫자) 한 번에 확인
+        text = "﻿영단어,뜻\nplimbox,상자\nabacus,수판\nplimbox,중복\n123,숫자\n"
+        result = self.client.post("/api/words/import", json={"username": self.user, "text": text}).json()
+        self.assertEqual((result["added"], result["skipped"], result["invalid"]), (1, 2, 1))
+        self.assertEqual(result["errors"][0]["line"], 5)
+        self.assertEqual(self.client.get("/api/words/plimbox", params=self.params()).status_code, 200)
+
+    def test_memorize_today_only_uses_assignment_words(self):
+        assignment = self.client.get("/api/assignment", params=self.params()).json()
+        today_words = {word["word"] for word in assignment["words"]}
+        for _ in range(5):
+            data = self.client.get("/api/memorize/next", params=self.params(today_only=True)).json()
+            self.assertIn(data["word"]["word"], today_words)
+
+    def test_assignment_reports_day_and_progress(self):
+        assignment = self.client.get("/api/assignment", params=self.params()).json()
+        self.assertEqual(assignment["day_number"], 1)
+        self.assertEqual(assignment["memorized_count"], 0)
+        self.assertGreater(assignment["total_count"], 0)
+        self.client.post("/api/memorize/open", json={
+            "username": self.user, "word": assignment["words"][0]["word"],
+        })
+        after = self.client.get("/api/assignment", params=self.params()).json()
+        self.assertEqual(after["memorized_count"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
