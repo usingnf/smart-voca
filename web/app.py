@@ -29,7 +29,9 @@ from config import (  # noqa: E402
     IMPORT_ERROR_SHOW, IMPORT_MAX_CHARS, PASS_RATE, POS_DEFAULT_ORDER, RECORD_ASSIGNMENT_TEST, RECORD_TEST,
     STATUS_PENDING, VOCA_PATH,
 )
-from online_dict import ATTRIBUTION_TEXT, MSG_NO_KEY, OnlineDictError, search_english_translations  # noqa: E402
+from online_dict import (  # noqa: E402
+    ATTRIBUTION_TEXT, KRDICT_KEY_ENV, OnlineDictError, load_krdict_api_key, search_english_translations,
+)
 from quiz import (  # noqa: E402
     DIRECTION_EN_TO_KO, DIRECTION_KO_TO_EN, DIRECTION_MIXED, KIND_CHOICE, KIND_OX, KIND_SHORT,
     build_questions, grade_answers, score_of,
@@ -61,6 +63,7 @@ QUIZ_KINDS = [KIND_SHORT, KIND_CHOICE, KIND_OX]
 QUIZ_DIRECTIONS = [DIRECTION_EN_TO_KO, DIRECTION_KO_TO_EN, DIRECTION_MIXED]
 SEARCH_LIMIT = 20
 MSG_OFFLINE_OFF = "온라인 검색이 꺼져 있습니다. 옵션에서 켤 수 있습니다."
+MSG_NO_KEY_WEB = f"온라인 검색 인증키가 없어 건너뜁니다. 서버 환경 변수 {KRDICT_KEY_ENV}를 설정하세요."
 
 
 def load_allowed_hosts():
@@ -154,7 +157,6 @@ class SettingsUpdate(BaseModel):
     exam_kinds: Optional[List[str]] = None
     exam_pos_keys: Optional[List[str]] = None
     exam_favorites_only: Optional[bool] = None
-    krdict_api_key: Optional[str] = None
 
 
 # ----- 공통 도움 함수 -----
@@ -483,10 +485,11 @@ def create_app():
         query = q.strip()
         if not query:
             return {"enabled": True, "results": [], "message": ""}
-        if not settings.krdict_api_key:
-            return {"enabled": True, "results": [], "message": MSG_NO_KEY}
+        api_key = load_krdict_api_key()
+        if not api_key:
+            return {"enabled": True, "results": [], "message": MSG_NO_KEY_WEB}
         try:
-            found = search_english_translations(query, settings.krdict_api_key)
+            found = search_english_translations(query, api_key)
         except OnlineDictError as error:
             return {"enabled": True, "results": [], "message": str(error)}
         return {"enabled": True, "results": [asdict(item) for item in found], "message": ""}
@@ -494,7 +497,7 @@ def create_app():
     # ----- 암기 -----
 
     @app.get("/api/memorize/next")
-    def memorize_next(username: str, favorites_only: bool = False, today_only: bool = False):
+    def memorize_next(username: str, favorites_only: bool = False, today_only: bool = True):
         session = open_session(vocabulary, username)
         notice = ""
         candidates = list(session.pool.values())
@@ -711,7 +714,8 @@ def create_app():
     def get_settings():
         settings = load_settings()
         data = asdict(settings)
-        data["krdict_api_key_set"] = bool(data.pop("krdict_api_key"))
+        data.pop("krdict_api_key", None)  # 데스크톱 설정 항목이라 웹 응답에는 넣지 않는다
+        data["krdict_api_key_set"] = bool(load_krdict_api_key())
         return data
 
     @app.put("/api/settings")

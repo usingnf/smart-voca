@@ -3,6 +3,7 @@
 # 2026-10-28 - 클로드 스마트 보카 - 한국어기초사전 API로 한글 뜻의 영어 번역 보조 검색 (FR-12)
 # 파일 위치: src/online_dict.py
 
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -10,6 +11,8 @@ import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass, field
 
 KRDICT_SEARCH_URL = "https://krdict.korean.go.kr/api/search"
+# 인증키는 환경 변수로만 받는다 (NFR-004). 코드나 DB에 두지 않는다.
+KRDICT_KEY_ENV = "KRDICT_API_KEY"
 KRDICT_TRANS_LANG_ENGLISH = "1"
 KRDICT_RESULT_NUM = 10
 REQUEST_TIMEOUT_SECONDS = 5
@@ -31,6 +34,11 @@ class OnlineWord:
     word: str
     pos: str = ""
     english: list = field(default_factory=list)
+
+
+def load_krdict_api_key():
+    """환경 변수 KRDICT_API_KEY의 인증키를 읽는다. 없으면 빈 문자열을 돌려준다."""
+    return os.environ.get(KRDICT_KEY_ENV, "").strip()
 
 
 def build_search_url(api_key, query):

@@ -319,12 +319,6 @@
     ]);
     memorizeSelect.value = settings.memorize_direction;
     const onlineCheck = SV_.el("input", { type: "checkbox", id: "opt-online", checked: settings.online_lookup_enabled || null });
-    const keyInput = SV_.el("input", {
-      type: "password",
-      id: "opt-key",
-      placeholder: settings.krdict_api_key_set ? "저장되어 있음 (바꾸려면 새로 입력)" : "인증키를 입력하세요",
-      autocomplete: "off",
-    });
     const message = SV_.el("p", { class: "notice", "aria-live": "polite" });
 
     async function save() {
@@ -334,32 +328,14 @@
         memorize_direction: memorizeSelect.value,
         online_lookup_enabled: onlineCheck.checked,
       };
-      if (keyInput.value.trim()) {
-        body.krdict_api_key = keyInput.value.trim();
-      }
       try {
         await SV_.api("/api/settings", { method: "PUT", body });
         SV_.applySettings(await SV_.api("/api/settings"));
         message.className = "notice ok";
         message.textContent = "옵션을 저장했습니다.";
-        keyInput.value = "";
       } catch (error) {
         message.className = "notice error";
         message.textContent = error.message;
-      }
-    }
-
-    async function clearKey() {
-      if (!window.confirm("저장된 온라인 검색 인증키를 지울까요?")) {
-        return;
-      }
-      try {
-        await SV_.api("/api/settings", { method: "PUT", body: { krdict_api_key: "" } });
-        SV_.applySettings(await SV_.api("/api/settings"));
-        SV_.toast("인증키를 지웠습니다.");
-        SV_.pages.options();
-      } catch (error) {
-        SV_.fail(error);
       }
     }
 
@@ -370,13 +346,14 @@
         SV_.el("div", { class: "form-row" }, [SV_.el("label", { text: "글꼴 크기" }), SV_.el("div", { class: "row" }, [fontInput, fontLabel])]),
         SV_.el("div", { class: "form-row" }, [SV_.el("label", { text: "암기 방향" }), memorizeSelect]),
         SV_.el("div", { class: "form-row" }, [SV_.el("label", { text: "온라인 검색" }), SV_.el("label", { class: "check" }, [onlineCheck, " 한글 검색 때 영어 번역 보조 검색 사용"])]),
-        SV_.el("div", { class: "form-row" }, [SV_.el("label", { text: "검색 인증키" }), keyInput]),
-        SV_.el("p", { class: "muted", text: "인증키는 이 PC의 설정 파일에만 저장되며 화면에 다시 표시되지 않습니다." }),
+        SV_.el("p", {
+          class: "muted",
+          text: settings.krdict_api_key_set
+            ? "온라인 검색 인증키: 서버 환경 변수 KRDICT_API_KEY로 설정되어 있습니다. 화면에서는 바꿀 수 없습니다."
+            : "온라인 검색 인증키가 없습니다. 서버를 실행할 때 환경 변수 KRDICT_API_KEY를 설정하세요.",
+        }),
         message,
-        SV_.el("div", { class: "row end" }, [
-          SV_.button("인증키 지우기", clearKey, "danger ghost"),
-          SV_.button("저장", save, "primary"),
-        ]),
+        SV_.el("div", { class: "row end" }, [SV_.button("저장", save, "primary")]),
       ]),
     ]);
   };

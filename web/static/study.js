@@ -190,7 +190,8 @@
     let entry = null;
     let opened = false;
     const favoritesCheck = SV_.el("input", { type: "checkbox", id: "memo-fav" });
-    const todayCheck = SV_.el("input", { type: "checkbox", id: "memo-today" });
+    // 기본값은 오늘 과제 단어만 보기다. 체크를 풀면 전체 단어에서 고른다.
+    const todayCheck = SV_.el("input", { type: "checkbox", id: "memo-today", checked: true });
     const notice = SV_.el("p", { class: "notice" });
     const main = SV_.el("div", { class: "memo-main" });
     const askEnglish = settings.memorize_direction !== "한글→영어";

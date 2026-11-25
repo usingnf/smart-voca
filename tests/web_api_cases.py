@@ -4,10 +4,12 @@
 # 파일 위치: tests/web_api_cases.py
 # 직접 실행하지 말고 tests/test_web_api.py가 SMARTVOCA_DATA_DIR을 지정해 실행한다.
 
+import os
 import sys
 import unittest
 import uuid
 from pathlib import Path
+from unittest import mock
 
 TESTS_DIR = Path(__file__).resolve().parent
 WEB_DIR = TESTS_DIR.parent / "web"
@@ -191,6 +193,13 @@ class WebApiCaseTests(unittest.TestCase):
         self.assertIn("word", data["word"])
         self.assertIn("meanings", data["word"])
 
+    def test_memorize_defaults_to_today_assignment_words(self):
+        assignment = self.client.get("/api/assignment", params=self.params()).json()
+        today_words = {word["word"] for word in assignment["words"]}
+        for _ in range(5):
+            data = self.client.get("/api/memorize/next", params=self.params()).json()
+            self.assertIn(data["word"]["word"], today_words)
+
     # ----- 시험 -----
 
     def test_test_quiz_hides_answers(self):
@@ -266,19 +275,25 @@ class WebApiCaseTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/csv", response.headers["content-type"])
 
-    def test_settings_update_and_api_key_is_not_returned(self):
-        self.client.put("/api/settings", json={"theme": "어둡게", "krdict_api_key": "SECRET-KEY"})
-        data = self.client.get("/api/settings").json()
+    def test_settings_update_and_api_key_comes_from_env_only(self):
+        with mock.patch.dict(os.environ, {"KRDICT_API_KEY": "SECRET-KEY"}):
+            self.client.put("/api/settings", json={"theme": "어둡게", "krdict_api_key": "DB-KEY"})
+            data = self.client.get("/api/settings").json()
         self.assertEqual(data["theme"], "어둡게")
         self.assertTrue(data["krdict_api_key_set"])
         self.assertNotIn("krdict_api_key", data)
         self.assertNotIn("SECRET-KEY", str(data))
+        self.assertNotIn("DB-KEY", str(data))
+        # 화면에서 보낸 키는 저장하지 않으므로, 환경 변수가 없으면 설정 안 됨으로 나온다
+        with mock.patch.dict(os.environ, {"KRDICT_API_KEY": ""}):
+            self.assertFalse(self.client.get("/api/settings").json()["krdict_api_key_set"])
 
-    def test_online_search_without_key_makes_no_network_call(self):
-        self.client.put("/api/settings", json={"krdict_api_key": "", "online_lookup_enabled": True})
-        data = self.client.get("/api/online-search", params=self.params(q="사과")).json()
+    def test_online_search_without_env_key_makes_no_network_call(self):
+        self.client.put("/api/settings", json={"online_lookup_enabled": True})
+        with mock.patch.dict(os.environ, {"KRDICT_API_KEY": ""}):
+            data = self.client.get("/api/online-search", params=self.params(q="사과")).json()
         self.assertEqual(data["results"], [])
-        self.assertIn("인증키", data["message"])
+        self.assertIn("KRDICT_API_KEY", data["message"])
 
     def test_reset_keeps_custom_words(self):
         self.client.post("/api/words", json={

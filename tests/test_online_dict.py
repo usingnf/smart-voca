@@ -3,6 +3,7 @@
 # 2026-10-28 - 클로드 스마트 보카 - 온라인 한영 보조 검색(FR-12) 요청 주소, 응답 해석, 오프라인 처리 단위 테스트
 # 파일 위치: tests/test_online_dict.py
 
+import os
 import sys
 import unittest
 import urllib.error
@@ -20,6 +21,7 @@ from online_dict import (  # noqa: E402
     MSG_OFFLINE,
     OnlineDictError,
     build_search_url,
+    load_krdict_api_key,
     parse_search_xml,
     search_english_translations,
 )
@@ -132,6 +134,17 @@ class AttributionTest(unittest.TestCase):
     def test_attribution_names_source_and_license(self):
         self.assertIn("한국어기초사전", ATTRIBUTION_TEXT)
         self.assertIn("저작자표시-동일조건변경허락 2.0 대한민국", ATTRIBUTION_TEXT)
+
+
+class EnvironmentKeyTest(unittest.TestCase):
+    def test_key_is_read_from_environment_and_stripped(self):
+        with mock.patch.dict(os.environ, {"KRDICT_API_KEY": "  ABC123  "}):
+            self.assertEqual(load_krdict_api_key(), "ABC123")
+
+    def test_missing_key_is_empty_string(self):
+        with mock.patch.dict(os.environ, {}):
+            os.environ.pop("KRDICT_API_KEY", None)
+            self.assertEqual(load_krdict_api_key(), "")
 
 
 class SettingsKeyTest(unittest.TestCase):
