@@ -16,13 +16,13 @@
 
 | 레이어 | 기술 |
 |--------|------|
-| 언어 | Python 3.11.4 (PC 설치본 중 최신, 2026-10-21 확인) |
-| 주요 라이브러리 | PyQt6 6.11.0 (GUI), PyInstaller 6.22.2 (exe 배포) |
-| 프론트엔드 | Windows 데스크톱 응용프로그램 (PyQt6) |
-| DB | 로컬 CSV 파일 `voca.csv` (영단어 4000개 저장, exe 옆에 위치) |
-| 실행 환경 | 로컬 (Windows 11), 단일 `.exe` 파일로 배포 |
+| 언어 | Python 3.11.4 (로컬 개발, 2026-10-21 확인) / Python 3.13 (Docker 이미지 `python:3.13-slim-bookworm`) |
+| 웹 (기본 실행) | FastAPI + uvicorn (`web/app.py`), 화면은 정적 HTML·JS (`web/static/`) |
+| 데스크톱 (보조) | PyQt6 6.11.0 (GUI), PyInstaller 6.22.2 (exe 빌드) |
+| DB | SQLite `voca.db` (사용자 데이터, 경로는 `DB_PATH`). 단어 원본은 `data/voca.csv` (영단어 약 4,000개) |
+| 실행 환경 | 로컬 Windows 11 (개발), Docker 컨테이너 (서버 배포: 포트 8080, UID 10001, `/2026/voca-<학번>/` 아래로 앞단 프록시) |
 
-#### 설치된 Python 현황 (2026-10-21 확인)
+#### 설치된 Python 현황 (2026-10-21 확인, 데스크톱 빌드 기준)
 
 - `py -0p` 기준: Python 3.11 (기본값), Python 3.10
 - `Python313` 폴더는 존재하나 실행 파일이 없어 사용 불가 (빈 폴더)
@@ -31,7 +31,7 @@
 
 ### 기능 요구사항
 
-요구사항은 별도 명세서로 분리했다: `docs/분석_261111_요구사항명세서 v1.1.md` (승인본).
+요구사항은 별도 명세서로 분리했다: `docs/분석_261111_요구사항명세서 v1.2.md` (승인본).
 
 - 기능 ID: FR-01 ~ FR-12 (단어 목록 관리, 암기, 시험, 일일 과제, 오답률, 시험 방향, 문제 유형, 이력, 보고서, 유사 의미 검색, 계정 삭제·초기화, 온라인 한영 보조 검색)
 - 세부 규칙, 미결 사항, 구현 추적은 명세서를 기준으로 한다.
@@ -49,17 +49,46 @@ SDLC 단계별 산출물(§2), AI 에이전트 협업 지침(§3)이 정의되�
 ```
 <프로젝트명>/
 ├── CLAUDE.md                     # 본 문서 — Claude 운용 지침
-├── README.md                     # 프로젝트 소개, 설치·실행 방법
+├── README.md                     # 프로젝트 소개, 실행 방법 (웹·Docker)
+├── Dockerfile                    # 서버 배포용 이미지 (리포 루트, R-01~R-10 규칙 준수)
+├── .dockerignore / .gitattributes
+├── requirements.txt              # 개발·데스크톱 빌드용 패키지
+├── requirements-server.txt       # 서버(Docker)용 패키지 (웹 API만)
+├── .github/workflows/
+│   └── docker-check.yml          # 학교 제공 점검 워크플로 (수정 금지)
 ├── docs/                         # 승인된 최종 산출물 (방법론 §2 SDLC 산출물)
-│   └── old/                      # 이전 버전 보관 (첫 v1.1 업데이트 시 생성)
+│   └── old/                      # 이전 버전 보관 (버전 업 시 사용)
 ├── ai-agent/
 │   ├── claude/                   # Claude 작업 디렉토리
 │   │   └── yymmdd_주제/           # 주제별 작업 묶음 (문서 + src/ + script/)
-│   ├── uploads/                  # 외부 참고자료 (강의자료, 논문, 레퍼런스)
+│   ├── uploads/                  # 외부 참고자료 (공개 리포에 커밋하지 않음, 아래 규칙)
 │   └── scripts/                  # 프로젝트 전용 스크립트
-├── src/                          # 소스 코드
-└── data/                         # 데이터 (용량 큰 원본은 커밋하지 않음)
+├── web/                          # 웹 앱 (FastAPI 서버 + 정적 화면), 기본 실행 버전
+├── src/                          # 공용 로직 + 데스크톱(PyQt6) 앱 (보조)
+└── data/                         # 단어 원본 voca.csv, 로컬 DB (voca.db는 커밋하지 않음)
 ```
+
+### 산출물 위치
+
+승인된 확정본은 `docs/`, 작업 중인 문서는 `ai-agent/claude/`에 둔다 (문서 관리 규칙 5 참조).
+
+| 산출물 | 위치 (`docs/` 기준 파일명) |
+|---|---|
+| 개발 방법론 사본 | `docs/개발방법론__AIsw.md` |
+| 프로젝트 기획서 | `docs/기획_261118_프로젝트 기획서 v1.0.md` |
+| 요구사항 명세서 | `docs/분석_261111_요구사항명세서 v1.2.md` |
+| 현황 분석서·환경 분석서 | `docs/분석_261118_현황 분석서 v1.0.md`, `docs/분석_261118_환경 분석서 v1.1.md` |
+| 기능 분해도 | `docs/설계_261118_기능 분해도 v1.0.md` |
+| 아키텍처 설계서·아키텍처 결정 기록 | `docs/설계_261118_아키텍처 설계서 v1.1.md`, `docs/설계_261118_아키텍처 결정 기록 v1.1.md` |
+| 데이터 설계서 | `docs/설계_261118_데이터 설계서 v1.1.md` |
+| 프로세스 설계서 | `docs/설계_261118_프로세스 설계서 v1.0.md` |
+| 웹 버전 설계서 | `docs/설계_261118_웹 버전 설계서 v1.1.md` |
+| 인터페이스 정의서 | `docs/설계_261118_인터페이스 정의서 v1.1.md` |
+| 배포·운영 정의서, 웹 실행 안내 | `docs/운영_261118_배포·운영 정의서 v1.1.md`, `docs/운영_261118_웹 실행 안내 v1.1.md` |
+| 구현 계획서 | `docs/작업계획_261118_구현 계획서 v1.0.md` |
+| 테스트 정의서·웹 테스트 정의서 | `docs/테스트_261118_테스트 정의서 v1.0.md`, `docs/테스트_261118_웹 테스트 정의서 v1.0.md` |
+| UI 시안 설계 (승격 전) | `ai-agent/claude/261021_UI시안/설계_261021_UI 시안 v1.0.md` |
+| 구현 설계 (승격 전) | `ai-agent/claude/261021_구현/설계_261021_구현 설계 v1.0.md` |
 
 `logs/`, `backups/`, `docker-compose.yml`, `.env.example` 등은 필요해지는 시점에 추가한다.
 
@@ -100,23 +129,19 @@ SDLC 단계별 산출물(§2), AI 에이전트 협업 지침(§3)이 정의되�
 
 ## 테스트 및 배포
 
-기술 스택이 확정되면 이 섹션에 다음을 명시한다.
-
-- 테스트 실행 방법 (`pytest`, `python -m unittest`, 노트북 실행 순서 등)
-- 실행·배포 방식 (스크립트 직접 실행 / `docker compose up --build <서비스>` 등)
-- 호스트에서 직접 빌드 금지 여부 (컨테이너를 쓴다면 대부분 금지 — 실행 환경 일치 보장)
-- 캐시 관련 알려진 함정 (브라우저 캐시, 빌드 캐시, 주피터 커널 재시작 필요 여부 등)
-
 - **테스트 실행**: `python -m unittest discover -s tests -v` (프로젝트 루트에서 실행)
-- **개발 실행**: `python src/main.py` (데이터는 `data/` 폴더 사용)
-- **exe 빌드**: `python -m PyInstaller --noconfirm --clean --onefile --windowed --name SmartVoca --icon ../src/assets/SmartVoca.ico --add-data "../src/assets/SmartVoca.ico;assets" --version-file ../packaging/version_info.txt --paths src --distpath dist --workpath build/pyi --specpath build src/main.py`
+- **웹 개발 실행 (기본)**: `python web/run.py` 또는 `웹실행.bat` → `http://127.0.0.1:8765/`. 사용자 데이터는 `data/voca.db`에 만들어진다.
+- **Docker 이미지 (서버 기준)**: `docker build -t voca-app .` → `docker run -p 8080:8080 -v voca-data:/data voca-app`. 서버 조건(UID 10001, 쓰기 경로 `/data`·`/tmp`)은 이미지로만 재현된다. 점검은 `.github/workflows/docker-check.yml`이 push마다 돌린다.
+- **데스크톱 개발 실행 (보조)**: `python src/main.py` (데이터는 `data/` 폴더 사용)
+- **데스크톱 exe 빌드 (보조)**: `python -m PyInstaller --noconfirm --clean --onefile --windowed --name SmartVoca --icon ../src/assets/SmartVoca.ico --add-data "../src/assets/SmartVoca.ico;assets" --version-file ../packaging/version_info.txt --paths src --distpath dist --workpath build/pyi --specpath build src/main.py`
   - `--icon`, `--add-data`, `--version-file` 경로는 spec 폴더(`build/`) 기준 상대경로다. 그래서 `../`로 쓴다.
   - `--add-data`로 넣은 아이콘은 읽기 전용 자원이라 PyInstaller 임시 폴더(`_MEIPASS`)에서 읽는다. 사용자 데이터는 여전히 exe 옆 폴더를 쓴다.
   - 파일 정보(제품 이름 "스마트 보카")는 `packaging/version_info.txt`에서 관리한다.
   - 아이콘 원본은 `src/assets/SmartVoca.ico`이며, 재생성은 `ai-agent/scripts/261111-앱아이콘생성.py`로 한다.
-- **exe 배포 방식**: `dist/SmartVoca.exe`와 같은 폴더에 `voca.csv`를 둔다. 제출물은 `SmartVoca.exe` 하나다. `voca.csv`, `users/`, `reports/`, `settings.json`은 실행 시 exe 옆에 생긴다.
-- **호스트 빌드**: 로컬 Windows에서 직접 빌드한다 (컨테이너 미사용).
-- **알려진 함정**: 오프스크린 렌더링(`QT_QPA_PLATFORM=offscreen`)에서는 Windows 글꼴을 읽지 못해 한글이 깨진다. 화면 캡처는 `QT_QPA_PLATFORM=windows`로 한다.
+- **데스크톱 exe 배포 방식 (보조)**: `dist/SmartVoca.exe`와 같은 폴더에 `voca.csv`를 둔다. 제출물은 `SmartVoca.exe` 하나다. `voca.csv`, `users/`, `reports/`, `settings.json`은 실행 시 exe 옆에 생긴다.
+- **호스트 빌드**: 서버용 이미지는 Docker에서만 빌드한다 (호스트 직접 실행은 서버와 조건이 달라 제출 검증에 쓰지 않는다). 데스크톱 exe는 로컬 Windows에서 직접 빌드한다.
+- **웹·Docker 함정**: uvicorn 워커는 1개로 둔다 (시험 진행 정보 `QuizRegistry`가 프로세스 메모리에 있어 워커를 나누면 채점이 실패한다). `/data`는 UID 10001이 쓸 수 있어야 한다. 점검 워크플로 통과를 확인한 뒤 제출한다.
+- **데스크톱 알려진 함정**: 오프스크린 렌더링(`QT_QPA_PLATFORM=offscreen`)에서는 Windows 글꼴을 읽지 못해 한글이 깨진다. 화면 캡처는 `QT_QPA_PLATFORM=windows`로 한다.
 
 ## 코드 작성 규칙
 
@@ -193,7 +218,8 @@ SDLC 단계별 산출물(§2), AI 에이전트 협업 지침(§3)이 정의되�
      하위에 `script/`, `src/`, `data/` 등 단순 이름 서브디렉토리를 둔다
    - `docs/` 산출물로 확정될 만하면 사용자에게 확인 후 승격
 
-   **`ai-agent/uploads/`** — 외부 참고자료(강의자료, 논문, 원본 데이터 설명서 등).
+   **`ai-agent/uploads/`** — 외부 참고자료(강의자료, 논문, 원본 데이터 설명서, 학교 제공 과제 문서 등).
+   **공개 리포에 커밋하지 않는다.** 학교 자료는 `git add` 하지 않는다 (현재 untracked 상태).
    날짜 접두어 없이 단순 명쾌한 이름.
 
    **`ai-agent/scripts/`** — 프로젝트 전용 스크립트. 상시 도구는 날짜 없음, 1회성은 `yymmdd-` 접두어.
