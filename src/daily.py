@@ -8,6 +8,7 @@ from datetime import timedelta
 from config import (
     DAILY_ASSIGNMENT_SIZE,
     PASS_RATE,
+    REVIEW_ERROR_SHARE,
     REVIEW_RATIO_MAX,
     REVIEW_RATIO_MIN,
     STATUS_COMPLETED,
@@ -39,6 +40,15 @@ def find_assignment(state, day):
     return None
 
 
+def day_number(state, day):
+    """날짜의 학습 일차(1일차, 2일차 …). 과제가 만들어진 순서로 센다. 과제가 없으면 None."""
+    day_key = day.isoformat()
+    for index, assignment in enumerate(state["assignments"]):
+        if assignment["date"] == day_key:
+            return index + 1
+    return None
+
+
 def close_overdue(state):
     """완수하지 못한 과제를 미이수로 바꾸고, 그 단어를 복습 대기열 뒤에 넣는다."""
     for assignment in state["assignments"]:
@@ -51,12 +61,22 @@ def close_overdue(state):
 
 
 def pick_review_words(state, yesterday_words, review_count, pool, rng):
-    """복습 단어를 고른다. 대기열을 먼저 쓰고, 부족하면 전날 암기한 단어에서 무작위로 채운다."""
+    """복습 단어를 고른다. 대기열 → 자주 틀린 단어 → 전날 암기한 단어 순서로 채운다.
+
+    자주 틀린 단어는 복습 수의 REVIEW_ERROR_SHARE만큼 섞는다 (VOCA-FR-013).
+    """
     review_words = []
     while state["queue"] and len(review_words) < review_count:
         word = state["queue"].pop(0)
         if word in pool and word not in review_words:
             review_words.append(word)
+
+    error_quota = min(int(review_count * REVIEW_ERROR_SHARE + 0.5), review_count - len(review_words))
+    if error_quota > 0:
+        error_candidates = [word for word in pool if word not in review_words and error_rate(state["stats"], word) > 0]
+        rng.shuffle(error_candidates)
+        error_candidates.sort(key=lambda word: -error_rate(state["stats"], word))
+        review_words.extend(error_candidates[:error_quota])
 
     if len(review_words) < review_count:
         candidates = [word for word in yesterday_words if word in pool and word not in review_words]

@@ -29,6 +29,21 @@ DISTRACTOR_CANDIDATE_LIMIT = 10
 # 보고서
 TOP_WRONG_WORDS = 10
 
+# 복습 단어 중 자주 틀린 단어가 차지하는 비율 (VOCA-FR-013: 전날 단어와 섞는다)
+REVIEW_ERROR_SHARE = 0.5
+
+# 시험 가중 출제 (VOCA-FR-022): 안 본 단어, 오답률이 높은 단어, 오래 안 본 단어를 더 자주 고른다
+TEST_WEIGHT_BASE = 1.0
+TEST_WEIGHT_NEVER_ASKED = 2.0
+TEST_WEIGHT_ERROR_RATE = 2.0
+TEST_WEIGHT_STALE = 1.0
+TEST_STALE_DAYS = 7
+
+# 단어 CSV 가져오기 (VOCA-FR-003)
+IMPORT_MAX_LINES = 5000
+IMPORT_MAX_CHARS = 2_000_000
+IMPORT_ERROR_SHOW = 20
+
 # 품사 표시 순서 (키: noun, verb, adj, adv, other)
 POS_DEFAULT_ORDER = ["noun", "verb", "adj", "adv", "other"]
 

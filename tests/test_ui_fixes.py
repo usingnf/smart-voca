@@ -74,7 +74,7 @@ class RecordMemorizeTests(unittest.TestCase):
     def setUp(self):
         from session import UserSession
         self.session = UserSession.__new__(UserSession)
-        self.session.state = {"memorized": {}}
+        self.session.state = {"memorized": {}, "assignments": []}
         self.session.store = FakeStore()
 
     def test_same_word_same_day_adds_history_only_once(self):

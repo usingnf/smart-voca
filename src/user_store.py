@@ -13,9 +13,9 @@ from database import transaction
 from timeutil import kst_now
 from vocab import WordEntry
 
-HISTORY_COLUMNS = ["일시", "구분", "단어", "방향", "유형", "결과", "입력값", "정답"]
+HISTORY_COLUMNS = ["일시", "구분", "단어", "방향", "유형", "결과", "입력값", "정답", "일차"]
 # 이력 표의 열 이름: 화면과 CSV는 한글 이름(HISTORY_COLUMNS)을, DB는 영문 이름을 쓴다.
-HISTORY_DB_COLUMNS = ["logged_at", "kind", "word", "direction", "question_kind", "result", "user_input", "expected"]
+HISTORY_DB_COLUMNS = ["logged_at", "kind", "word", "direction", "question_kind", "result", "user_input", "expected", "day"]
 HISTORY_KEY_BY_DB_COLUMN = dict(zip(HISTORY_DB_COLUMNS, HISTORY_COLUMNS))
 USERNAME_RE = re.compile(USERNAME_PATTERN)
 
@@ -144,13 +144,13 @@ class UserStore:
             return
         values = [
             (self.key, row["일시"], row["구분"], row["단어"], row["방향"], row["유형"],
-             row["결과"], row["입력값"], row["정답"])
+             row["결과"], row["입력값"], row["정답"], row.get("일차"))
             for row in rows
         ]
         with transaction(self.db_path) as connection:
             connection.executemany(
                 "INSERT INTO history (user_key, logged_at, kind, word, direction, question_kind, result, "
-                "user_input, expected) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "user_input, expected, day) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 values,
             )
 
@@ -158,7 +158,7 @@ class UserStore:
         """이력을 기록 순서대로 읽는다. 각 행은 한글 열 이름의 dict."""
         with transaction(self.db_path) as connection:
             rows = connection.execute(
-                "SELECT logged_at, kind, word, direction, question_kind, result, user_input, expected "
+                "SELECT logged_at, kind, word, direction, question_kind, result, user_input, expected, day "
                 "FROM history WHERE user_key = ? ORDER BY id",
                 (self.key,),
             ).fetchall()

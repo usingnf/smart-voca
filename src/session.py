@@ -14,7 +14,7 @@ from config import (
     STATUS_MISSED,
     STATUS_PENDING,
 )
-from daily import complete_assignment, create_today_assignment, find_assignment
+from daily import complete_assignment, create_today_assignment, day_number, find_assignment
 from quiz import score_of
 from timeutil import kst_now, kst_today
 from user_store import UserStore, history_csv_bytes, make_custom_entry
@@ -65,6 +65,25 @@ class UserSession:
             merged = True
         self._store_custom(entry)
         return merged
+
+    def add_words_bulk(self, words, pos="other"):
+        """여러 단어를 한 번에 추가한다 (CSV 가져오기). words는 (영단어, 뜻 목록) 목록이다.
+
+        이미 있는 단어(기본 단어 포함)와 같은 파일 안에서 두 번째 나온 단어는 건너뛴다.
+        반환: {"added": 추가 수, "skipped": 건너뛴 수}
+        """
+        added, skipped, seen = 0, 0, set()
+        for word, meanings in words:
+            if word in self.pool or word in seen:
+                skipped += 1
+                continue
+            seen.add(word)
+            self.custom[word] = make_custom_entry(word, pos, meanings)
+            added += 1
+        if added:
+            self.store.save_custom_words(self.custom)
+            self.refresh_pool()
+        return {"added": added, "skipped": skipped}
 
     def update_custom_word(self, word, pos, meanings):
         """사용자 추가 단어의 품사와 뜻을 바꾼다."""
@@ -142,8 +161,9 @@ class UserSession:
             return
         words.append(word)
         self.save()
+        day = day_number(self.state, kst_today())
         self.store.append_history([self._history_row(
-            RECORD_MEMORIZE, word, "", "", RESULT_OPENED, "", "")])
+            RECORD_MEMORIZE, word, "", "", RESULT_OPENED, "", "", day=day)])
 
     def record_results(self, results, kind_label):
         """시험 결과를 오답률 통계와 이력에 기록한다."""
@@ -151,6 +171,7 @@ class UserSession:
         for result in results:
             record = self.state["stats"].setdefault(result.word, {"asked": 0, "wrong": 0})
             record["asked"] += 1
+            record["last_asked"] = kst_today().isoformat()
             if not result.is_correct:
                 record["wrong"] += 1
             history_rows.append(self._history_row(
@@ -194,7 +215,16 @@ class UserSession:
     def history(self):
         return self.store.read_history()
 
-    def _history_row(self, kind, word, direction, kind_of_question, result, user_input, expected):
+    def progress(self, today):
+        """학습 진도: 오늘 일차, 암기한 단어 수(현재 단어 풀 기준), 전체 단어 수."""
+        memorized = {word for words in self.state["memorized"].values() for word in words}
+        return {
+            "day": day_number(self.state, today),
+            "memorized": len(memorized & set(self.pool)),
+            "total": len(self.pool),
+        }
+
+    def _history_row(self, kind, word, direction, kind_of_question, result, user_input, expected, day=None):
         return {
             "일시": kst_now().isoformat(timespec="seconds"),
             "구분": kind,
@@ -204,4 +234,5 @@ class UserSession:
             "결과": result,
             "입력값": user_input,
             "정답": expected,
+            "일차": day,
         }

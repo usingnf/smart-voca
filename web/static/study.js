@@ -190,13 +190,14 @@
     let entry = null;
     let opened = false;
     const favoritesCheck = SV_.el("input", { type: "checkbox", id: "memo-fav" });
+    const todayCheck = SV_.el("input", { type: "checkbox", id: "memo-today" });
     const notice = SV_.el("p", { class: "notice" });
     const main = SV_.el("div", { class: "memo-main" });
     const askEnglish = settings.memorize_direction !== "한글→영어";
 
     async function loadNext() {
       try {
-        const data = await SV_.api(`/api/memorize/next?${SV_.query({ favorites_only: favoritesCheck.checked })}`);
+        const data = await SV_.api(`/api/memorize/next?${SV_.query({ favorites_only: favoritesCheck.checked, today_only: todayCheck.checked })}`);
         entry = data.word;
         opened = false;
         notice.textContent = data.notice || "";
@@ -282,7 +283,7 @@
     }
 
     function onKey(event) {
-      if (event.target && ["INPUT", "TEXTAREA"].includes(event.target.tagName) && event.target !== favoritesCheck) {
+      if (event.target && ["INPUT", "TEXTAREA"].includes(event.target.tagName) && event.target !== favoritesCheck && event.target !== todayCheck) {
         return;
       }
       if (event.key === "Enter" && entry) {
@@ -298,8 +299,10 @@
     SV_.cleanup.push(() => document.removeEventListener("keydown", onKey));
 
     favoritesCheck.addEventListener("change", loadNext);
+    todayCheck.addEventListener("change", loadNext);
     SV_.render([
       SV_.el("h2", { text: "암기" }),
+      SV_.el("label", { class: "check" }, [todayCheck, " 오늘 과제 단어만 보기 (그날의 단어 암기)"]),
       SV_.el("label", { class: "check" }, [favoritesCheck, " 즐겨찾기 단어만 보기"]),
       notice,
       main,
@@ -445,7 +448,8 @@
       SV_.render([
         SV_.el("h2", { text: "오늘의 영단어 과제" }),
         SV_.card([
-          SV_.el("p", { text: `날짜: ${data.date}  ·  상태: ${statusText}  ·  점수: ${scoreText}` }),
+          SV_.el("p", { text: `${data.day_number}일차  ·  날짜: ${data.date}  ·  상태: ${statusText}  ·  점수: ${scoreText}` }),
+          SV_.el("p", { class: "muted", text: `암기한 단어 ${data.memorized_count} / ${data.total_count}` }),
           SV_.el("p", { class: "muted", text: `복습 ${data.review_count}개 + 신규 ${data.new_count}개 · 정답률 80% 이상이면 완수` }),
         ]),
         SV_.card([SV_.el("ul", { class: "word-list" }, wordRows)]),

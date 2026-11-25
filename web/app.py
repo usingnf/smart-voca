@@ -26,7 +26,8 @@ from pydantic import BaseModel, Field  # noqa: E402
 
 from config import (  # noqa: E402
     APP_TITLE, BASE_DIR, DAILY_ASSIGNMENT_SIZE, EXAM_QUESTION_MAX, EXAM_QUESTION_MIN, EXAM_QUESTION_STEP,
-    PASS_RATE, POS_DEFAULT_ORDER, RECORD_ASSIGNMENT_TEST, RECORD_TEST, STATUS_PENDING, VOCA_PATH,
+    IMPORT_ERROR_SHOW, IMPORT_MAX_CHARS, PASS_RATE, POS_DEFAULT_ORDER, RECORD_ASSIGNMENT_TEST, RECORD_TEST,
+    STATUS_PENDING, VOCA_PATH,
 )
 from online_dict import ATTRIBUTION_TEXT, MSG_NO_KEY, OnlineDictError, search_english_translations  # noqa: E402
 from quiz import (  # noqa: E402
@@ -36,6 +37,7 @@ from quiz import (  # noqa: E402
 from report import (  # noqa: E402
     PERIOD_CUSTOM, PERIOD_OPTIONS, build_summary, daily_accuracy, period_range,
 )
+from sampling import pick_weighted_words  # noqa: E402
 from session import UserSession  # noqa: E402
 from settings import THEME_CHOICES, load_settings, save_settings  # noqa: E402
 from timeutil import kst_today  # noqa: E402
@@ -44,6 +46,7 @@ from vocab import (  # noqa: E402
     POS_LABELS, WORD_PATTERN, Vocabulary, filter_by_pos, search_by_english, search_by_meaning,
 )
 from quiz_registry import MODE_ASSIGNMENT, MODE_TEST, MODE_WRONG, QuizRegistry  # noqa: E402
+from word_import import parse_word_csv  # noqa: E402
 
 QUIZ_KINDS = [KIND_SHORT, KIND_CHOICE, KIND_OX]
 QUIZ_DIRECTIONS = [DIRECTION_EN_TO_KO, DIRECTION_KO_TO_EN, DIRECTION_MIXED]
@@ -82,6 +85,11 @@ class WordUpdate(BaseModel):
     username: str
     pos: str
     meanings: List[str]
+
+
+class WordImport(BaseModel):
+    username: str
+    text: str = Field(max_length=IMPORT_MAX_CHARS)
 
 
 class UserRef(BaseModel):
@@ -288,6 +296,16 @@ def create_app():
         session.add_word(word, body.pos, meanings)
         return {"word": word, "merged": existed}
 
+    @app.post("/api/words/import")
+    def import_words(body: WordImport):
+        session = open_session(vocabulary, body.username)
+        try:
+            entries, errors = parse_word_csv(body.text)
+        except ValueError as error:
+            raise HTTPException(400, str(error))
+        result = session.add_words_bulk([(entry["word"], entry["meanings"]) for entry in entries])
+        return {**result, "invalid": len(errors), "errors": errors[:IMPORT_ERROR_SHOW]}
+
     @app.put("/api/words/{word}")
     def update_word(word: str, body: WordUpdate):
         session = open_session(vocabulary, body.username)
@@ -334,16 +352,21 @@ def create_app():
     # ----- 암기 -----
 
     @app.get("/api/memorize/next")
-    def memorize_next(username: str, favorites_only: bool = False):
+    def memorize_next(username: str, favorites_only: bool = False, today_only: bool = False):
         session = open_session(vocabulary, username)
         notice = ""
         candidates = list(session.pool.values())
+        if today_only:
+            assignment = session.today_assignment()
+            candidates = [session.pool[word] for word in assignment["words"] if word in session.pool]
         if favorites_only:
-            favorite_pool = session.favorite_pool()
-            if favorite_pool:
-                candidates = list(favorite_pool.values())
+            favorite_words = [entry for entry in candidates if session.is_favorite(entry.word)]
+            if favorite_words:
+                candidates = favorite_words
             else:
-                notice = "즐겨찾기 단어가 없어 전체 단어에서 보여 줍니다."
+                notice = "즐겨찾기 단어가 없어 이 범위의 전체 단어에서 보여 줍니다."
+        if not candidates:
+            raise HTTPException(400, "보여 줄 단어가 없습니다.")
         entry = session.rng.choice(candidates)
         return {"word": entry_json(session, entry), "notice": notice}
 
@@ -372,8 +395,7 @@ def create_app():
         candidate_list = list(candidates.values())
         if not candidate_list:
             raise HTTPException(400, "조건에 맞는 단어가 없습니다. 품사나 즐겨찾기 조건을 확인하세요.")
-        count = min(body.count, len(candidate_list))
-        targets = session.rng.sample(candidate_list, count)
+        targets = pick_weighted_words(candidates, session.state["stats"], kst_today(), body.count, session.rng)
         questions = build_questions(targets, session.pool, body.direction, body.kinds, session.rng)
         quiz_id = quizzes.add(session.username_key, MODE_TEST, questions)
         return quiz_response(quiz_id, "시험", questions)
@@ -441,6 +463,7 @@ def create_app():
         session = open_session(vocabulary, username)
         assignment = session.today_assignment()
         words = [session.pool[word] for word in assignment["words"] if word in session.pool]
+        progress = session.progress(kst_today())
         return {
             "date": assignment["date"],
             "status": assignment["status"],
@@ -448,6 +471,9 @@ def create_app():
             "pending": assignment["status"] == STATUS_PENDING,
             "review_count": len(assignment["review"]),
             "new_count": len(assignment["new"]),
+            "day_number": progress["day"],
+            "memorized_count": progress["memorized"],
+            "total_count": progress["total"],
             "words": [entry_json(session, entry) for entry in words],
         }
 

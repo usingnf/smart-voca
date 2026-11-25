@@ -42,6 +42,36 @@
       }
     });
 
+    const fileInput = SV_.el("input", { type: "file", id: "import-file", accept: ".csv,text/csv" });
+    const importMessage = SV_.el("p", { class: "notice", "aria-live": "polite" });
+    const importErrors = SV_.el("ul", { class: "muted", id: "import-errors" });
+
+    async function importFile() {
+      const file = fileInput.files[0];
+      importErrors.replaceChildren();
+      if (!file) {
+        importMessage.className = "notice error";
+        importMessage.textContent = "CSV 파일을 먼저 고르세요.";
+        return;
+      }
+      try {
+        const text = await file.text();
+        const result = await SV_.api("/api/words/import", {
+          method: "POST",
+          body: { username: SV_.state.username, text },
+        });
+        importMessage.className = "notice ok";
+        const invalidText = result.invalid ? `, 형식 오류 ${result.invalid}줄` : "";
+        importMessage.textContent =
+          `${result.added}개 추가, ${result.skipped}개 건너뜀(이미 있는 단어 또는 파일 안 중복)${invalidText}`;
+        result.errors.forEach((item) => importErrors.appendChild(SV_.el("li", { text: `${item.line}줄: ${item.reason}` })));
+        fileInput.value = "";
+      } catch (error) {
+        importMessage.className = "notice error";
+        importMessage.textContent = error.message;
+      }
+    }
+
     SV_.render([
       SV_.el("h2", { text: "단어 추가" }),
       SV_.card([
@@ -51,6 +81,14 @@
         SV_.el("p", { class: "muted", text: "영문자, 공백, 하이픈, 작은따옴표만 쓸 수 있습니다. 같은 단어가 있으면 뜻을 합칩니다." }),
         message,
         SV_.el("div", { class: "row end" }, [SV_.button("저장", save, "primary")]),
+      ]),
+      SV_.card([
+        SV_.el("h3", { text: "CSV 가져오기" }),
+        SV_.el("p", { class: "muted", text: "영단어,뜻 두 칸짜리 UTF-8 CSV입니다. 첫 줄 머리글(영단어,뜻)은 있어도 되고 없어도 됩니다. 품사는 '기타'로 들어갑니다. 이미 있는 단어는 건너뜁니다." }),
+        SV_.el("div", { class: "form-row" }, [SV_.el("label", { text: "파일" }), fileInput]),
+        importMessage,
+        importErrors,
+        SV_.el("div", { class: "row end" }, [SV_.button("가져오기", importFile, "primary")]),
       ]),
     ]);
     wordInput.focus();

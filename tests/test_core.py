@@ -195,7 +195,7 @@ class StoreTests(unittest.TestCase):
             store = UserStore("tester", db_path=Path(temp_dir) / "test.db")
             store.create()
             rows = [{"일시": f"2026-10-21T10:00:0{i}+09:00", "구분": "시험", "단어": word,
-                     "방향": "영어→한글", "유형": "단답형", "결과": "오답", "입력값": "x", "정답": "y"}
+                     "방향": "영어→한글", "유형": "단답형", "결과": "오답", "입력값": "x", "정답": "y", "일차": None}
                     for i, word in enumerate(["apple", "pear"])]
             store.append_history(rows)
             self.assertEqual(store.read_history(), rows)

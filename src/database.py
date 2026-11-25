@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS history (
     question_kind TEXT NOT NULL DEFAULT '',
     result TEXT NOT NULL DEFAULT '',
     user_input TEXT NOT NULL DEFAULT '',
-    expected TEXT NOT NULL DEFAULT ''
+    expected TEXT NOT NULL DEFAULT '',
+    day INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_history_user ON history(user_key, id);
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -69,6 +70,13 @@ def connect(db_path=None):
     return connection
 
 
+def _add_missing_columns(connection):
+    """예전에 만든 DB에 새로 생긴 열을 더한다. CREATE TABLE IF NOT EXISTS는 기존 표를 바꾸지 않기 때문이다."""
+    history_columns = {row["name"] for row in connection.execute("PRAGMA table_info(history)").fetchall()}
+    if "day" not in history_columns:
+        connection.execute("ALTER TABLE history ADD COLUMN day INTEGER")
+
+
 def ensure_schema(db_path=None):
     """테이블이 없으면 만든다. 같은 파일에서는 한 번만 실행한다."""
     path = resolve_db_path(db_path)
@@ -77,6 +85,7 @@ def ensure_schema(db_path=None):
     connection = connect(path)
     try:
         connection.executescript(SCHEMA_SQL)
+        _add_missing_columns(connection)
         connection.commit()
     finally:
         connection.close()
